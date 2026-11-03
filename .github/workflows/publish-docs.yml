@@ -1,0 +1,35 @@
+name: Deploy Documentation to Qwiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'qwiki-project.json'
+
+jobs:
+  deploy-qwiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Qwiki Builder
+        run: |
+          pip install git+https://github.com/qwiki-wiki/qwiki-builder.git
+
+      - name: Validate Documentation Integrity
+        run: |
+          qwiki-builder validate
+
+      - name: Publish to Remote Qwiki
+        env:
+          QWIKI_URL: ${{ secrets.QWIKI_URL }}
+          QWIKI_API_KEY: ${{ secrets.QWIKI_API_KEY }}
+        run: |
+          qwiki-builder publish

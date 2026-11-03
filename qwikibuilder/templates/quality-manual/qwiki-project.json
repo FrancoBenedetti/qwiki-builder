@@ -1,0 +1,63 @@
+{
+  "name": "Corporate Quality Management Manual (ISO 9001)",
+  "slug": "quality-manual",
+  "version": "1.0.0",
+  "doc_type_preset": "quality-manual",
+  "description": "Defines the quality management system, leadership responsibilities, core process maps, and audit governance.",
+  "docs_dir": "docs",
+  "assets_dir": "docs/assets",
+  "default_status": "published",
+  "public_shareable": true,
+  "categories": [
+    {
+      "id": "scope-policy",
+      "title": "Scope & Quality Policy",
+      "description": "Organizational context, scope of certification, and quality statement"
+    },
+    {
+      "id": "leadership",
+      "title": "Leadership & Governance",
+      "description": "Organizational roles, customer focus, and management review"
+    },
+    {
+      "id": "processes",
+      "title": "Core Operational Processes",
+      "description": "Design, procurement, production, verification, and traceability"
+    },
+    {
+      "id": "improvement",
+      "title": "Evaluation & Improvement",
+      "description": "Internal audit, CAPA (Corrective Actions), and KPI reporting"
+    }
+  ],
+  "documents": [
+    {
+      "file": "01-scope-policy/01-quality-policy-and-scope.md",
+      "category": "scope-policy",
+      "slug": "qm-quality-policy-scope-context",
+      "title": "Quality Policy, Context & Scope of Certification",
+      "status": "published"
+    },
+    {
+      "file": "02-leadership/01-leadership-and-roles.md",
+      "category": "leadership",
+      "slug": "qm-leadership-governance-roles",
+      "title": "Leadership Commitment, Roles & Responsibilities",
+      "status": "published"
+    },
+    {
+      "file": "03-processes/01-core-operations-process.md",
+      "category": "processes",
+      "slug": "qm-core-operational-process-flow",
+      "title": "Core Operational Process & Value Stream Map",
+      "status": "published"
+    },
+    {
+      "file": "04-improvement/01-audit-and-continuous-improvement.md",
+      "category": "improvement",
+      "slug": "qm-internal-audit-capa-improvement",
+      "title": "Performance Evaluation, Auditing & Corrective Actions",
+      "status": "published"
+    }
+  ]
+}

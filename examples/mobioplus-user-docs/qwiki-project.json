@@ -1,0 +1,107 @@
+{
+  "name": "MoBioplus Agricultural Commercial & Field System Documentation",
+  "slug": "mobioplus-user-docs",
+  "version": "2.4.0",
+  "doc_type_preset": "user-guide",
+  "description": "Production reference example demonstrating the 24 canonical chapters deployed to wiki.mobioplus.co.za/user-docs.",
+  "wiki_url": "https://wiki.mobioplus.co.za/user-docs",
+  "docs_dir": "docs",
+  "assets_dir": "docs/assets",
+  "default_status": "published",
+  "public_shareable": true,
+  "categories": [
+    {
+      "id": "readme",
+      "title": "Read Me & Overview",
+      "description": "Master portal overview, system navigation, and reading guide"
+    },
+    {
+      "id": "01-ops-geocrm",
+      "title": "Operational Guide: GeoCRM Platform",
+      "description": "Field sales reps, technical advisors, and agronomic review authorities"
+    },
+    {
+      "id": "01-ops-library",
+      "title": "Operational Guide: Library Wiki",
+      "description": "Knowledge hub, 12 agronomic basins catalog, and grower share cards"
+    },
+    {
+      "id": "01-ops-advisory",
+      "title": "Operational Guide: Sales Kit & Advisory Workflow",
+      "description": "Decoupled sales kits, evaluation samples, and commercial trial policies"
+    },
+    {
+      "id": "02-tech-geocrm",
+      "title": "Technical Guide: GeoCRM Architecture & Admin",
+      "description": "Database models, REST API synchronization gateway, and security"
+    },
+    {
+      "id": "02-tech-library",
+      "title": "Technical Guide: Standalone-Qwiki Engine",
+      "description": "Flat-file architecture, headless publishing API, and zero-JS print standards"
+    },
+    {
+      "id": "02-tech-pipeline",
+      "title": "Technical Guide: Pipeline Engine & CLI",
+      "description": "Client intake schemas, agronomic validation rules, and release state machine"
+    }
+  ],
+  "documents": [
+    {
+      "file": "README.md",
+      "category": "readme",
+      "slug": "mobioplus-system-documentation-operational-guides",
+      "title": "MoBioplus System Documentation & Operational Guides",
+      "status": "published"
+    },
+    {
+      "file": "01-operational-guide/01-geocrm/01-overview-and-navigation.md",
+      "category": "01-ops-geocrm",
+      "slug": "geocrm-platform-overview-map-navigation",
+      "title": "GeoCRM Platform Overview & Map Navigation",
+      "status": "published"
+    },
+    {
+      "file": "01-operational-guide/01-geocrm/02-field-sales-reps.md",
+      "category": "01-ops-geocrm",
+      "slug": "geocrm-field-sales-representatives-guide",
+      "title": "Field Sales Representatives Guide",
+      "status": "published"
+    },
+    {
+      "file": "01-operational-guide/02-library-wiki/01-knowledge-hub-overview.md",
+      "category": "01-ops-library",
+      "slug": "library-wiki-knowledge-hub-overview",
+      "title": "Library Wiki Knowledge Hub Overview",
+      "status": "published"
+    },
+    {
+      "file": "01-operational-guide/03-advisory-workflow/01-decoupled-sales-kit-concept.md",
+      "category": "01-ops-advisory",
+      "slug": "the-decoupled-sales-kit-architecture",
+      "title": "The Decoupled Sales Kit Architecture",
+      "status": "published"
+    },
+    {
+      "file": "02-technical-guide/01-geocrm/01-architecture-and-data-models.md",
+      "category": "02-tech-geocrm",
+      "slug": "geocrm-architecture-database-schema",
+      "title": "GeoCRM Architecture & Database Schema",
+      "status": "published"
+    },
+    {
+      "file": "02-technical-guide/02-library-wiki/01-flat-file-architecture.md",
+      "category": "02-tech-library",
+      "slug": "standalone-qwiki-flat-file-architecture-manifest",
+      "title": "Standalone-Qwiki Flat-File Architecture & Manifest",
+      "status": "published"
+    },
+    {
+      "file": "02-technical-guide/03-pipeline-engine/01-cli-command-reference.md",
+      "category": "02-tech-pipeline",
+      "slug": "pipeline-engine-cli-command-reference",
+      "title": "Pipeline Engine CLI Command Reference",
+      "status": "published"
+    }
+  ]
+}

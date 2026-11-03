@@ -1,0 +1,70 @@
+{
+  "name": "Industrial Equipment Technical & Operator Manual",
+  "slug": "equipment-manual",
+  "version": "1.0.0",
+  "doc_type_preset": "equipment-manual",
+  "description": "Comprehensive equipment technical specifications, safety protocols, operation routines, and maintenance schedules.",
+  "docs_dir": "docs",
+  "assets_dir": "docs/assets",
+  "default_status": "published",
+  "public_shareable": true,
+  "categories": [
+    {
+      "id": "specifications",
+      "title": "System Specifications",
+      "description": "General machine architecture, electrical and mechanical parameters"
+    },
+    {
+      "id": "safety",
+      "title": "Safety & Warnings",
+      "description": "Mandatory PPE, emergency stops, hazard zones, and lockout/tagout"
+    },
+    {
+      "id": "operation",
+      "title": "Operating Procedures",
+      "description": "Pre-flight checks, startup sequence, calibration, and normal shutdown"
+    },
+    {
+      "id": "maintenance",
+      "title": "Maintenance & Troubleshooting",
+      "description": "Preventive inspection cycles, lubrication, fault codes, and spare parts"
+    }
+  ],
+  "documents": [
+    {
+      "file": "01-specifications/01-system-overview.md",
+      "category": "specifications",
+      "slug": "equipment-system-overview",
+      "title": "Equipment Overview & Component Architecture",
+      "status": "published"
+    },
+    {
+      "file": "01-specifications/02-technical-data.md",
+      "category": "specifications",
+      "slug": "equipment-technical-data-specifications",
+      "title": "Technical Data & Environmental Specifications",
+      "status": "published"
+    },
+    {
+      "file": "02-safety/01-safety-precautions.md",
+      "category": "safety",
+      "slug": "equipment-safety-warnings-loto",
+      "title": "Safety Precautions & Lockout/Tagout Procedures",
+      "status": "published"
+    },
+    {
+      "file": "03-operation/01-startup-and-controls.md",
+      "category": "operation",
+      "slug": "equipment-startup-operation-controls",
+      "title": "Startup Sequences & Operator Controls",
+      "status": "published"
+    },
+    {
+      "file": "04-maintenance/01-preventive-maintenance.md",
+      "category": "maintenance",
+      "slug": "equipment-preventive-maintenance-service",
+      "title": "Preventive Maintenance & Inspection Schedule",
+      "status": "published"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "name": "Workplace Health, Safety & Environmental Handbook",
+  "slug": "safety-handbook",
+  "version": "1.0.0",
+  "doc_type_preset": "safety-handbook",
+  "description": "Company health, safety and environmental policies, emergency actions, PPE mandates, and incident reporting.",
+  "docs_dir": "docs",
+  "assets_dir": "docs/assets",
+  "default_status": "published",
+  "public_shareable": true,
+  "categories": [
+    {
+      "id": "policy",
+      "title": "Safety Policy & General Rules",
+      "description": "Management commitment, employee duties, and Golden Safety Rules"
+    },
+    {
+      "id": "emergency",
+      "title": "Emergency Action Procedures",
+      "description": "Evacuation maps, fire response, first aid, and severe weather"
+    },
+    {
+      "id": "hazards-ppe",
+      "title": "Hazard Control & Mandatory PPE",
+      "description": "Personal protective equipment matrix, chemical handling, and ergonomics"
+    },
+    {
+      "id": "incidents",
+      "title": "Incident & Near-Miss Reporting",
+      "description": "Immediate reporting protocols, investigation forms, and zero-retaliation policy"
+    }
+  ],
+  "documents": [
+    {
+      "file": "01-policy/01-ehs-commitment-and-rules.md",
+      "category": "policy",
+      "slug": "safety-policy-golden-rules",
+      "title": "Health & Safety Policy & Golden Safety Rules",
+      "status": "published"
+    },
+    {
+      "file": "02-emergency/01-emergency-procedures.md",
+      "category": "emergency",
+      "slug": "safety-emergency-evacuation-first-aid",
+      "title": "Emergency Response, Evacuation & First Aid",
+      "status": "published"
+    },
+    {
+      "file": "03-hazards-ppe/01-hazard-control-and-ppe.md",
+      "category": "hazards-ppe",
+      "slug": "safety-hazard-control-ppe-standards",
+      "title": "Hazard Identification & PPE Matrix",
+      "status": "published"
+    },
+    {
+      "file": "04-incident-reporting/01-incident-investigation.md",
+      "category": "incidents",
+      "slug": "safety-incident-near-miss-reporting",
+      "title": "Incident, Injury & Near-Miss Reporting Protocol",
+      "status": "published"
+    }
+  ]
+}

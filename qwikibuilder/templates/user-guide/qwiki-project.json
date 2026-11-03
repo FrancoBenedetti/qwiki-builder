@@ -1,0 +1,65 @@
+{
+  "name": "Software Platform User Guide",
+  "slug": "user-guide",
+  "version": "1.0.0",
+  "doc_type_preset": "user-guide",
+  "description": "Comprehensive user guide covering platform overview, core features, workflows, and troubleshooting.",
+  "docs_dir": "docs",
+  "assets_dir": "docs/assets",
+  "default_status": "published",
+  "public_shareable": true,
+  "categories": [
+    {
+      "id": "getting-started",
+      "title": "Getting Started",
+      "description": "Platform introduction, account setup, and quick navigation"
+    },
+    {
+      "id": "core-features",
+      "title": "Core Features & Operations",
+      "description": "In-depth guide to key system tools and workflows"
+    },
+    {
+      "id": "troubleshooting",
+      "title": "Troubleshooting & Support",
+      "description": "Common resolutions, diagnostic steps, and support channels"
+    }
+  ],
+  "documents": [
+    {
+      "file": "00-getting-started/01-introduction.md",
+      "category": "getting-started",
+      "slug": "user-guide-platform-introduction",
+      "title": "Welcome to the Platform",
+      "status": "published"
+    },
+    {
+      "file": "00-getting-started/02-quick-start.md",
+      "category": "getting-started",
+      "slug": "user-guide-quick-start",
+      "title": "Quick Start Guide & Onboarding",
+      "status": "published"
+    },
+    {
+      "file": "01-core-features/01-dashboard-and-navigation.md",
+      "category": "core-features",
+      "slug": "user-guide-dashboard-navigation",
+      "title": "Dashboard Navigation & Controls",
+      "status": "published"
+    },
+    {
+      "file": "01-core-features/02-managing-resources.md",
+      "category": "core-features",
+      "slug": "user-guide-managing-resources",
+      "title": "Resource Management & Collaboration",
+      "status": "published"
+    },
+    {
+      "file": "02-troubleshooting/01-faq-and-support.md",
+      "category": "troubleshooting",
+      "slug": "user-guide-faq-and-support",
+      "title": "Frequently Asked Questions & Support",
+      "status": "published"
+    }
+  ]
+}

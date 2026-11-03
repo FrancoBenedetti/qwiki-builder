@@ -1,0 +1,46 @@
+{
+  "name": "Standard Operating Procedures (SOP) Library",
+  "slug": "sop-library",
+  "version": "1.0.0",
+  "doc_type_preset": "sop",
+  "description": "Standardized company operating procedures, document numbering, step-by-step instructions, and revision controls.",
+  "docs_dir": "docs",
+  "assets_dir": "docs/assets",
+  "default_status": "published",
+  "public_shareable": true,
+  "categories": [
+    {
+      "id": "framework",
+      "title": "SOP Framework & Administration",
+      "description": "Document authoring standards, numbering conventions, and approval workflows"
+    },
+    {
+      "id": "procedures",
+      "title": "Operational Standard Procedures",
+      "description": "Active technical and business execution standard procedures"
+    }
+  ],
+  "documents": [
+    {
+      "file": "01-framework/01-sop-management-framework.md",
+      "category": "framework",
+      "slug": "sop-001-authoring-lifecycle-framework",
+      "title": "SOP-001: Standard Operating Procedure Lifecycle & Authoring",
+      "status": "published"
+    },
+    {
+      "file": "02-procedures/01-standard-change-control.md",
+      "category": "procedures",
+      "slug": "sop-101-engineering-change-control",
+      "title": "SOP-101: Engineering & Operational Change Control",
+      "status": "published"
+    },
+    {
+      "file": "02-procedures/02-routine-production-cycle.md",
+      "category": "procedures",
+      "slug": "sop-102-routine-production-handover",
+      "title": "SOP-102: Shift Handover & Production Run Sign-off",
+      "status": "published"
+    }
+  ]
+}

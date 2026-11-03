@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qwiki-builder"
+version = "1.0.0"
+description = "Generalised CLI, Python engine, and AI agent workflow to create, manage, and remotely deploy online documentation suites, equipment manuals, user guides, quality manuals, and safety handbooks to Standalone Qwiki."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Antigravity & Qwiki Community"}
+]
+keywords = [
+    "qwiki",
+    "documentation",
+    "user-guide",
+    "manual",
+    "safety-handbook",
+    "quality-manual",
+    "sop",
+    "automation",
+    "publishing",
+    "ai-agent"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Manufacturing",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Documentation",
+    "Topic :: Software Development :: Documentation",
+]
+
+[project.scripts]
+qwiki-builder = "qwikibuilder.cli:main"
+qwikibuild = "qwikibuilder.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["qwikibuilder*"]
+
+[tool.setuptools.package-data]
+qwikibuilder = ["templates/**/*"]

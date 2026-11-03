@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""
+CLI wrapper script for Qwiki Builder.
+Allows running directly from checkout without package installation.
+"""
+
+import sys
+from pathlib import Path
+
+# Ensure package directory is on Python path
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from qwikibuilder.cli import main
+
+if __name__ == "__main__":
+    sys.exit(main())
