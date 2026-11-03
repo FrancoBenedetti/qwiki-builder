@@ -42,6 +42,10 @@ classifiers = [
     "Topic :: Software Development :: Documentation",
 ]
 
+[project.urls]
+Homepage = "https://github.com/FrancoBenedetti/qwiki-builder"
+Repository = "https://github.com/FrancoBenedetti/qwiki-builder"
+
 [project.scripts]
 qwiki-builder = "qwikibuilder.cli:main"
 qwikibuild = "qwikibuilder.cli:main"

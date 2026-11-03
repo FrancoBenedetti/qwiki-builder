@@ -21,7 +21,7 @@ jobs:
 
       - name: Install Qwiki Builder
         run: |
-          pip install git+https://github.com/qwiki-wiki/qwiki-builder.git
+          pip install git+https://github.com/FrancoBenedetti/qwiki-builder.git
 
       - name: Validate Documentation Integrity
         run: |

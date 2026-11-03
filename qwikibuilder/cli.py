@@ -150,7 +150,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     if not readme_path.exists():
         readme_path.write_text(
             f"# {project_name}\n\n"
-            f"Online documentation suite managed by [qwiki-builder](https://github.com/qwiki-wiki/qwiki-builder).\n\n"
+            f"Online documentation suite managed by [qwiki-builder](https://github.com/FrancoBenedetti/qwiki-builder).\n\n"
             "## Commands\n\n"
             "```bash\n"
             "# Validate documentation integrity\n"

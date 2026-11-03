@@ -51,21 +51,24 @@ Qwiki Builder ships with production-grade templates tailored to standard busines
 
 ### 1. Installation
 
-You can run Qwiki Builder directly from checkout, install it via `pip`, or symlink the binary:
+You can install Qwiki Builder via `pip`, run it directly from checkout, or install it system-wide:
 
 ```bash
 # Clone the repository
-git clone https://github.com/qwiki-wiki/qwiki-builder.git
+git clone https://github.com/FrancoBenedetti/qwiki-builder.git
 cd qwiki-builder
 
-# Option A: Run directly from checkout
-./bin/qwiki-builder --help
-
-# Option B: Install into your active Python environment
+# Option A: Install into your active Python environment
 pip install .
 
-# Option C: Install directly from GitHub
-pip install git+https://github.com/qwiki-wiki/qwiki-builder.git
+# Option B: Run directly from checkout
+./bin/qwiki-builder --help
+
+# Option C: Global system install (links CLI to ~/.local/bin and installs Agent Skill)
+./scripts/install-global.sh
+
+# Option D: Install directly from GitHub
+pip install git+https://github.com/FrancoBenedetti/qwiki-builder.git
 ```
 
 ### 2. Scaffold a New Manual Project
@@ -307,7 +310,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Qwiki Builder
-        run: pip install git+https://github.com/qwiki-wiki/qwiki-builder.git
+        run: pip install git+https://github.com/FrancoBenedetti/qwiki-builder.git
 
       - name: Validate Documentation
         run: qwiki-builder validate
