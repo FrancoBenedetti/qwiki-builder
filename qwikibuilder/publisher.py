@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .assets import AssetManager
 from .client import QwikiClient
+from .links import LinkManager
 from .manifest import DocumentItem, QwikiProjectManifest
 
 
@@ -24,6 +25,7 @@ class QwikiPublisher:
         self.assets_path = manifest.get_assets_path()
         self.project_root = manifest.project_root or Path.cwd()
         self.asset_manager = AssetManager(client, self.assets_path)
+        self.link_manager = LinkManager(manifest)
 
     def verify_and_create_categories(self, dry_run: bool = False) -> Dict[str, str]:
         """
@@ -83,6 +85,12 @@ class QwikiPublisher:
             )
         else:
             processed_content = content
+
+        # Process and resolve internal hyperlinks to include canonical '<category>/<slug>'
+        processed_content, link_rewrites = self.link_manager.process_content_links(
+            content=processed_content,
+            doc_dir=doc_file.parent,
+        )
 
         if dry_run:
             return {
