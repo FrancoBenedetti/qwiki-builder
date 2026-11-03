@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="100%" height="100%">
+  <defs>
+    <!-- Dark Tech Canvas Background -->
+    <linearGradient id="bg-canvas" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080C14" />
+      <stop offset="50%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#090D16" />
+    </linearGradient>
+
+    <!-- Radial Glow Highlights -->
+    <radialGradient id="top-left-glow" cx="15%" cy="15%" r="50%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="bottom-right-glow" cx="85%" cy="85%" r="50%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0" />
+    </radialGradient>
+
+    <linearGradient id="q-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="45%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+
+    <linearGradient id="q-tail-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="50%" stop-color="#F97316" />
+      <stop offset="100%" stop-color="#EF4444" />
+    </linearGradient>
+
+    <linearGradient id="headline-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="70%" stop-color="#F1F5F9" />
+      <stop offset="100%" stop-color="#38BDF8" />
+    </linearGradient>
+
+    <filter id="card-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#000000" flood-opacity="0.6" />
+    </filter>
+  </defs>
+
+  <!-- Background Layer -->
+  <rect width="1200" height="630" fill="url(#bg-canvas)" />
+  <rect width="1200" height="630" fill="url(#top-left-glow)" />
+  <rect width="1200" height="630" fill="url(#bottom-right-glow)" />
+
+  <!-- Subtle Blueprint Grid Pattern -->
+  <g opacity="0.04" stroke="#FFFFFF" stroke-width="1.5">
+    <line x1="0" y1="105" x2="1200" y2="105" />
+    <line x1="0" y1="210" x2="1200" y2="210" />
+    <line x1="0" y1="315" x2="1200" y2="315" />
+    <line x1="0" y1="420" x2="1200" y2="420" />
+    <line x1="0" y1="525" x2="1200" y2="525" />
+    <line x1="150" y1="0" x2="150" y2="630" />
+    <line x1="300" y1="0" x2="300" y2="630" />
+    <line x1="450" y1="0" x2="450" y2="630" />
+    <line x1="600" y1="0" x2="600" y2="630" />
+    <line x1="750" y1="0" x2="750" y2="630" />
+    <line x1="900" y1="0" x2="900" y2="630" />
+    <line x1="1050" y1="0" x2="1050" y2="630" />
+  </g>
+
+  <!-- Top Navigation / Pill Header -->
+  <g transform="translate(80, 60)">
+    <!-- Brand Mark Mini -->
+    <g transform="translate(0, -6)">
+      <circle cx="20" cy="20" r="16" fill="none" stroke="url(#q-ring-grad)" stroke-width="4.5" />
+      <path d="M26 26 L34 34 L31 36 L27 35 Z" fill="url(#q-tail-grad)" />
+      <text x="46" y="27" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="800" fill="#FFFFFF" letter-spacing="-0.5">
+        Qwiki<tspan fill="#6366F1">Builder</tspan>
+      </text>
+    </g>
+
+    <g transform="translate(760, -4)">
+      <rect x="0" y="0" width="280" height="34" rx="17" fill="#1E293B" stroke="#334155" stroke-width="1.2" />
+      <circle cx="18" cy="17" r="4.5" fill="#10B981" />
+      <text x="32" y="22" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#94A3B8">
+        STANDALONE QWIKI ECOSYSTEM
+      </text>
+    </g>
+  </g>
+
+  <!-- Main Hero Content Left -->
+  <g transform="translate(80, 160)">
+    <!-- Pill: Zero-Dependency Python Toolchain -->
+    <g transform="translate(0, 0)">
+      <rect x="0" y="0" width="290" height="32" rx="16" fill="#1E293B" stroke="#4F46E5" stroke-width="1.5" />
+      <text x="16" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" fill="#818CF8" letter-spacing="1">
+        ⚡ PYTHON 3.8+ • 0 DEPENDENCIES
+      </text>
+    </g>
+
+    <!-- Main Title -->
+    <text x="0" y="90" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="900" fill="url(#headline-grad)" letter-spacing="-1.2">
+      Turn Raw Docs Into
+    </text>
+    <text x="0" y="152" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="900" fill="url(#headline-grad)" letter-spacing="-1.2">
+      Production Online Wikis.
+    </text>
+
+    <!-- Subtitle -->
+    <text x="0" y="210" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="400" fill="#94A3B8" width="560">
+      CLI, Python engine &amp; AI Agent workflow for automated creation,
+    </text>
+    <text x="0" y="240" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="400" fill="#94A3B8" width="560">
+      asset upload, slug deduplication, and remote deployment.
+    </text>
+
+    <!-- Template Badges Row -->
+    <g transform="translate(0, 290)">
+      <!-- Badge 1: User Guides -->
+      <g transform="translate(0, 0)">
+        <rect x="0" y="0" width="120" height="32" rx="6" fill="#0F172A" stroke="#334155" stroke-width="1.2" />
+        <text x="14" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#CBD5E1">📖 User Guides</text>
+      </g>
+      <!-- Badge 2: Equipment Manuals -->
+      <g transform="translate(130, 0)">
+        <rect x="0" y="0" width="160" height="32" rx="6" fill="#0F172A" stroke="#334155" stroke-width="1.2" />
+        <text x="14" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#CBD5E1">⚙️ Equipment Manuals</text>
+      </g>
+      <!-- Badge 3: ISO 9001 -->
+      <g transform="translate(300, 0)">
+        <rect x="0" y="0" width="124" height="32" rx="6" fill="#0F172A" stroke="#334155" stroke-width="1.2" />
+        <text x="14" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#CBD5E1">🏅 ISO Quality</text>
+      </g>
+      <!-- Badge 4: SOP Library -->
+      <g transform="translate(434, 0)">
+        <rect x="0" y="0" width="130" height="32" rx="6" fill="#0F172A" stroke="#334155" stroke-width="1.2" />
+        <text x="14" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#CBD5E1">📋 SOP Libraries</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Right Visual Card Mockup: Terminal + Live Sync Visual -->
+  <g transform="translate(720, 150)" filter="url(#card-shadow)">
+    <!-- Terminal Window Container -->
+    <rect x="0" y="0" width="400" height="360" rx="16" fill="#0D1117" stroke="#30363D" stroke-width="2" />
+    
+    <!-- Window Bar -->
+    <rect x="0" y="0" width="400" height="36" rx="16" fill="#161B22" />
+    <circle cx="20" cy="18" r="5" fill="#FF5F56" />
+    <circle cx="36" cy="18" r="5" fill="#FFBD2E" />
+    <circle cx="52" cy="18" r="5" fill="#27C93F" />
+    <text x="140" y="23" font-family="monospace" font-size="12" fill="#8B949E">bash — qwiki-builder</text>
+
+    <!-- Terminal Code / Sync Log -->
+    <g transform="translate(20, 60)" font-family="'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace" font-size="13">
+      <!-- Command line -->
+      <text x="0" y="16" fill="#58A6FF">$ qwiki-builder publish --sync</text>
+      
+      <!-- Output steps -->
+      <text x="0" y="50" fill="#7EE787">✔</text>
+      <text x="18" y="50" fill="#C9D1D9">Loaded manifest: 24 chapters</text>
+
+      <text x="0" y="80" fill="#7EE787">✔</text>
+      <text x="18" y="80" fill="#C9D1D9">Validated links &amp; Mermaid syntax</text>
+
+      <text x="0" y="110" fill="#7EE787">✔</text>
+      <text x="18" y="110" fill="#C9D1D9">Uploaded 18 images &amp; diagrams</text>
+
+      <text x="0" y="140" fill="#7EE787">✔</text>
+      <text x="18" y="140" fill="#C9D1D9">Deduplicated remote slugs</text>
+
+      <!-- Sync Highlight Box -->
+      <g transform="translate(0, 170)">
+        <rect x="0" y="0" width="360" height="66" rx="8" fill="#13233A" stroke="#1F6FEB" stroke-width="1.2" />
+        <text x="16" y="28" font-size="12" font-weight="700" fill="#58A6FF">🚀 DEPLOYMENT COMPLETE</text>
+        <text x="16" y="48" font-size="11" fill="#8B949E">https://wiki.example.com/docs [24/24 Synced]</text>
+      </g>
+
+      <!-- Agent active status badge -->
+      <g transform="translate(0, 254)">
+        <circle cx="6" cy="6" r="4" fill="#38BDF8" />
+        <text x="18" y="10" font-size="11" fill="#38BDF8">AI Agent Workflow: Antigravity Ready</text>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -145,6 +145,28 @@ def cmd_init(args: argparse.Namespace) -> int:
         )
         manifest.save()
 
+    # Ensure assets directory and subfolders exist for all presets
+    assets_img_dir = dest / "docs" / "assets" / "images"
+    assets_vid_dir = dest / "docs" / "assets" / "videos"
+    assets_img_dir.mkdir(parents=True, exist_ok=True)
+    assets_vid_dir.mkdir(parents=True, exist_ok=True)
+    assets_readme = dest / "docs" / "assets" / "README.md"
+    if not assets_readme.exists():
+        assets_readme.write_text(
+            "# Documentation Assets (Images, Screenshots & Videos)\n\n"
+            "Store screenshots, diagrams, and video files here to enrich your documentation.\n\n"
+            "### Supported Media Types:\n"
+            "- **Images & Screenshots:** `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`, `.gif`\n"
+            "- **Video Screencasts & Demos:** `.mp4`, `.webm`, `.ogg`, `.ogv`, `.mov`\n\n"
+            "### Usage in Markdown:\n"
+            "- **Screenshot / Diagram:** `![UI Overview](assets/images/overview.png)`\n"
+            "- **Video Player (Auto-Embedded):** `[Video Walkthrough](assets/videos/demo.mp4)` or `![Demo](assets/videos/demo.mp4)`\n"
+            "- **External Video:** Place standalone YouTube, Vimeo, or Loom URLs on their own line.\n\n"
+            "When running `qwiki-builder publish`, local asset references are automatically uploaded "
+            "to Standalone Qwiki via the headless REST API and rewritten to remote URLs.\n",
+            encoding="utf-8",
+        )
+
     # Create root README if not present
     readme_path = dest / "README.md"
     if not readme_path.exists():

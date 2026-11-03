@@ -13,7 +13,11 @@ from .client import QwikiClient
 
 
 class AssetManager:
-    """Discovers, uploads, and rewrites relative image assets for Qwiki documents."""
+    """Discovers, uploads, and rewrites relative image and media assets for Qwiki documents."""
+
+    IMAGE_EXTENSIONS = ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.svg", "*.gif")
+    VIDEO_EXTENSIONS = ("*.mp4", "*.webm", "*.ogg", "*.ogv", "*.mov")
+    ALL_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
 
     def __init__(self, client: QwikiClient, assets_dir: Path, cache_file: Optional[Path] = None):
         self.client = client
@@ -40,7 +44,8 @@ class AssetManager:
 
     def upload_file(self, file_path: Path) -> str:
         """
-        Uploads a single asset file to Qwiki. Returns the remote URL or uploaded relative path.
+        Uploads a single asset file (image, screenshot, or video) to Qwiki.
+        Returns the remote URL or uploaded relative path.
         Uses cache if file was already uploaded and modified timestamp hasn't changed.
         """
         file_path = file_path.resolve()
@@ -57,13 +62,12 @@ class AssetManager:
         return remote_url
 
     def upload_all_in_assets_dir(self) -> Dict[str, str]:
-        """Uploads all supported images and assets found in the assets directory."""
+        """Uploads all supported images, screenshots, generated visuals, and videos in the assets directory."""
         if not self.assets_dir.is_dir():
             return {}
 
         uploaded: Dict[str, str] = {}
-        extensions = ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.svg", "*.gif")
-        for ext in extensions:
+        for ext in self.ALL_EXTENSIONS:
             for f in self.assets_dir.rglob(ext):
                 if f.name.startswith("."):
                     continue
@@ -75,6 +79,17 @@ class AssetManager:
 
         return uploaded
 
+    def resolve_local_file(self, clean_path: str, doc_dir: Path) -> Optional[Path]:
+        """Resolves a local asset file path relative to doc_dir or assets_dir."""
+        cand1 = (doc_dir / clean_path).resolve()
+        cand2 = (self.assets_dir / clean_path).resolve()
+        cand3 = (self.assets_dir / Path(clean_path).name).resolve()
+
+        for cand in (cand1, cand2, cand3):
+            if cand.is_file():
+                return cand
+        return None
+
     def process_content_images(
         self,
         content: str,
@@ -82,9 +97,22 @@ class AssetManager:
         auto_upload: bool = True,
     ) -> Tuple[str, List[str]]:
         """
-        Scans markdown/html content for image references. If local files exist,
-        uploads them (if auto_upload=True) and rewrites paths to remote URLs.
-        Returns (rewritten_content, list_of_referenced_images).
+        Scans markdown/html content for image, screenshot, and video references.
+        If local files exist, uploads them (if auto_upload=True) and rewrites paths to remote URLs.
+        Returns (rewritten_content, list_of_referenced_assets).
+        """
+        return self.process_content_assets(content, doc_dir, auto_upload=auto_upload)
+
+    def process_content_assets(
+        self,
+        content: str,
+        doc_dir: Path,
+        auto_upload: bool = True,
+    ) -> Tuple[str, List[str]]:
+        """
+        Scans markdown/html content for image, screenshot, and video references.
+        If local files exist, uploads them (if auto_upload=True) and rewrites paths to remote URLs.
+        Returns (rewritten_content, list_of_referenced_assets).
         """
         referenced: List[str] = []
 
@@ -102,27 +130,40 @@ class AssetManager:
             if not auto_upload:
                 return match.group(0)
 
-            # Resolve local path relative to doc_dir or assets_dir
-            resolved_file = None
-            cand1 = (doc_dir / clean_path).resolve()
-            cand2 = (self.assets_dir / clean_path).resolve()
-            cand3 = (self.assets_dir / Path(clean_path).name).resolve()
-
-            for cand in (cand1, cand2, cand3):
-                if cand.is_file():
-                    resolved_file = cand
-                    break
-
+            resolved_file = self.resolve_local_file(clean_path, doc_dir)
             if resolved_file:
                 try:
                     remote_url = self.upload_file(resolved_file)
                     return f"![{alt}]({remote_url})"
                 except Exception as e:
-                    print(f"  ⚠️ Image upload failed for {clean_path}: {e}")
+                    print(f"  ⚠️ Image/asset upload failed for {clean_path}: {e}")
 
             return match.group(0)
 
-        def replace_html_img(match: re.Match) -> str:
+        def replace_md_video_link(match: re.Match) -> str:
+            label = match.group(1)
+            raw_path = match.group(2).strip()
+
+            if re.match(r"^https?://", raw_path, re.IGNORECASE) or raw_path.startswith("data:"):
+                return match.group(0)
+
+            clean_path = raw_path.split("?")[0].split("#")[0]
+            referenced.append(clean_path)
+
+            if not auto_upload:
+                return match.group(0)
+
+            resolved_file = self.resolve_local_file(clean_path, doc_dir)
+            if resolved_file:
+                try:
+                    remote_url = self.upload_file(resolved_file)
+                    return f"[{label}]({remote_url})"
+                except Exception as e:
+                    print(f"  ⚠️ Video link upload failed for {clean_path}: {e}")
+
+            return match.group(0)
+
+        def replace_html_src(match: re.Match) -> str:
             prefix = match.group(1)
             raw_path = match.group(2).strip()
             suffix = match.group(3)
@@ -136,34 +177,25 @@ class AssetManager:
             if not auto_upload:
                 return match.group(0)
 
-            resolved_file = None
-            cand1 = (doc_dir / clean_path).resolve()
-            cand2 = (self.assets_dir / clean_path).resolve()
-            cand3 = (self.assets_dir / Path(clean_path).name).resolve()
-
-            for cand in (cand1, cand2, cand3):
-                if cand.is_file():
-                    resolved_file = cand
-                    break
-
+            resolved_file = self.resolve_local_file(clean_path, doc_dir)
             if resolved_file:
                 try:
                     remote_url = self.upload_file(resolved_file)
                     return f"{prefix}{remote_url}{suffix}"
                 except Exception as e:
-                    print(f"  ⚠️ HTML image upload failed for {clean_path}: {e}")
+                    print(f"  ⚠️ HTML media upload failed for {clean_path}: {e}")
 
             return match.group(0)
 
-        # Process Markdown images: ![alt](path)
+        # 1. Process Markdown images: ![alt](path)
         processed = re.sub(r"!\[(.*?)\]\((.*?)\)", replace_md_image, content)
 
-        # Process HTML img tags: <img ... src="..." ...>
-        processed = re.sub(
-            r'(<img\b[^>]*?\bsrc=["\'])([^"\']+)(["\'][^>]*?>)',
-            replace_html_img,
-            processed,
-            flags=re.IGNORECASE,
-        )
+        # 2. Process Markdown video links: [label](path.mp4)
+        video_pattern = r"(?<!\!)\[(.*?)\]\(([^)]+?\.(?:mp4|webm|ogg|ogv|mov)(?:[?#][^)]*)?)\)"
+        processed = re.sub(video_pattern, replace_md_video_link, processed, flags=re.IGNORECASE)
+
+        # 3. Process HTML img, video, source tags: <tag ... src="..." ...>
+        html_src_pattern = r'(<(?:img|video|source)\b[^>]*?\bsrc=["\'])([^"\']+)(["\'][^>]*?>)'
+        processed = re.sub(html_src_pattern, replace_html_src, processed, flags=re.IGNORECASE)
 
         return processed, referenced

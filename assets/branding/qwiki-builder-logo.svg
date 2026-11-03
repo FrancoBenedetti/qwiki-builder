@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 260" width="100%" height="100%">
+  <defs>
+    <style>
+      /* Light Mode Defaults (high contrast on white / light backgrounds) */
+      .brand-title { fill: #0F172A; }
+      .brand-accent { fill: #4F46E5; }
+      .pill-container { fill: #F1F5F9; stroke: #CBD5E1; }
+      .badge-text { fill: #4338CA; }
+      .subtext { fill: #475569; }
+      .doc-page-left { fill: #F8FAFC; stroke: #94A3B8; }
+      .doc-page-right { fill: #FFFFFF; stroke: #CBD5E1; }
+      .doc-spine { stroke: #475569; }
+      .doc-line { stroke: #64748B; }
+      .doc-accent-line { stroke: #0284C7; }
+      .sparkle { fill: #0284C7; }
+      .ring-stroke { stroke: url(#q-ring-adaptive); }
+
+      /* Dark Mode Overrides (high contrast on dark backgrounds) */
+      @media (prefers-color-scheme: dark) {
+        .brand-title { fill: #FFFFFF; }
+        .brand-accent { fill: #818CF8; }
+        .pill-container { fill: #1E293B; stroke: #334155; }
+        .badge-text { fill: #38BDF8; }
+        .subtext { fill: #94A3B8; }
+        .doc-page-left { fill: #1E293B; stroke: #475569; }
+        .doc-page-right { fill: #334155; stroke: #64748B; }
+        .doc-spine { stroke: #94A3B8; }
+        .doc-line { stroke: #94A3B8; }
+        .doc-accent-line { stroke: #38BDF8; }
+        .sparkle { fill: #38BDF8; }
+      }
+    </style>
+
+    <!-- Ring Gradient (vibrant across both dark and light modes) -->
+    <linearGradient id="q-ring-adaptive" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7" />
+      <stop offset="45%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#7C3AED" />
+    </linearGradient>
+
+    <!-- Tail Rocket Gradient -->
+    <linearGradient id="q-tail-adaptive" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="50%" stop-color="#EA580C" />
+      <stop offset="100%" stop-color="#DC2626" />
+    </linearGradient>
+
+    <filter id="logo-shadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#4F46E5" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Left: Emblem / Mark (Scaled & centered within 220x220) -->
+  <g transform="translate(20, 20)">
+    <!-- Outer Orbit Ring of the 'Q' -->
+    <circle cx="110" cy="110" r="76" fill="none" class="ring-stroke" stroke-width="17" stroke-linecap="round" filter="url(#logo-shadow)" />
+
+    <!-- Open Document Pages inside the Q -->
+    <g transform="translate(110, 110)">
+      <!-- Left Page with border for crisp white/light contrast -->
+      <path d="M-3 18 C-18 12 -38 13 -54 20 L-54 -34 C-38 -41 -18 -40 -3 -34 Z" class="doc-page-left" stroke-width="1.5" stroke-linejoin="round" />
+      <!-- Right Page with border for crisp white/light contrast -->
+      <path d="M3 18 C18 12 38 13 54 20 L54 -34 C38 -41 18 -40 3 -34 Z" class="doc-page-right" stroke-width="1.5" stroke-linejoin="round" />
+      <path d="M0 -36 L0 20" class="doc-spine" stroke-width="2.5" stroke-linecap="round" />
+
+      <!-- Page text lines -->
+      <line x1="-44" y1="-22" x2="-14" y2="-26" class="doc-line" stroke-width="3" stroke-linecap="round" />
+      <line x1="-44" y1="-10" x2="-20" y2="-13" class="doc-line" stroke-width="3" stroke-linecap="round" />
+      <line x1="14" y1="-26" x2="44" y2="-22" class="doc-accent-line" stroke-width="3" stroke-linecap="round" />
+      <line x1="14" y1="-13" x2="38" y2="-10" class="doc-line" stroke-width="3" stroke-linecap="round" />
+
+      <!-- Small AI Sparkle -->
+      <path d="M0 -46 L2 -53 L9 -55 L2 -57 L0 -64 L-2 -57 L-9 -55 L-2 -53 Z" class="sparkle" />
+    </g>
+
+    <!-- Q Tail Deployment Rocket / Wedge -->
+    <g>
+      <path d="M150 150 L204 204 L190 212 L164 210 L136 182 Z" fill="url(#q-tail-adaptive)" />
+      <polygon points="166,166 186,168 162,192" fill="#FDE047" />
+      <circle cx="208" cy="208" r="4.5" fill="#FDE047" />
+      <circle cx="218" cy="218" r="3" fill="#EA580C" />
+    </g>
+  </g>
+
+  <!-- Right: Typography -->
+  <g transform="translate(280, 0)">
+    <!-- Main Title "Qwiki" + "Builder" -->
+    <text x="0" y="132" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="88" font-weight="900" letter-spacing="-1.5">
+      <tspan class="brand-title">Qwiki</tspan><tspan class="brand-accent">Builder</tspan>
+    </text>
+
+    <!-- Tagline / Subtitle Pill -->
+    <g transform="translate(2, 160)">
+      <rect x="0" y="0" width="220" height="34" rx="8" class="pill-container" stroke-width="1.5" />
+      <text x="18" y="22" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700" class="badge-text" letter-spacing="1.2">
+        DOCUMENTATION ENGINE
+      </text>
+
+      <text x="240" y="23" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="500" class="subtext">
+        Automated Manuals &amp; Wiki Deployment
+      </text>
+    </g>
+  </g>
+</svg>

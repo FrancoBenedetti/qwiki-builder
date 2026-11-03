@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 260" width="100%" height="100%">
+  <defs>
+    <!-- Ring Gradient tuned for Light Theme -->
+    <linearGradient id="q-ring-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7" />
+      <stop offset="45%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#7C3AED" />
+    </linearGradient>
+
+    <!-- Tail Rocket Gradient -->
+    <linearGradient id="q-tail-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="50%" stop-color="#EA580C" />
+      <stop offset="100%" stop-color="#DC2626" />
+    </linearGradient>
+
+    <filter id="logo-shadow-light" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#4F46E5" flood-opacity="0.2" />
+    </filter>
+  </defs>
+
+  <!-- Left: Emblem / Mark (Scaled & centered within 220x220) -->
+  <g transform="translate(20, 20)">
+    <!-- Outer Orbit Ring of the 'Q' -->
+    <circle cx="110" cy="110" r="76" fill="none" stroke="url(#q-ring-light)" stroke-width="17" stroke-linecap="round" filter="url(#logo-shadow-light)" />
+
+    <!-- Open Document Pages inside the Q -->
+    <g transform="translate(110, 110)">
+      <!-- Left Page: Subtle light gray with crisp border for pure white backgrounds -->
+      <path d="M-3 18 C-18 12 -38 13 -54 20 L-54 -34 C-38 -41 -18 -40 -3 -34 Z" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.5" stroke-linejoin="round" />
+      <!-- Right Page: Crisp white with border -->
+      <path d="M3 18 C18 12 38 13 54 20 L54 -34 C38 -41 18 -40 3 -34 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5" stroke-linejoin="round" />
+      <path d="M0 -36 L0 20" stroke="#475569" stroke-width="2.5" stroke-linecap="round" />
+
+      <!-- Page text lines -->
+      <line x1="-44" y1="-22" x2="-14" y2="-26" stroke="#64748B" stroke-width="3" stroke-linecap="round" />
+      <line x1="-44" y1="-10" x2="-20" y2="-13" stroke="#64748B" stroke-width="3" stroke-linecap="round" />
+      <line x1="14" y1="-26" x2="44" y2="-22" stroke="#0284C7" stroke-width="3" stroke-linecap="round" />
+      <line x1="14" y1="-13" x2="38" y2="-10" stroke="#64748B" stroke-width="3" stroke-linecap="round" />
+
+      <!-- Small AI Sparkle -->
+      <path d="M0 -46 L2 -53 L9 -55 L2 -57 L0 -64 L-2 -57 L-9 -55 L-2 -53 Z" fill="#0284C7" />
+    </g>
+
+    <!-- Q Tail Deployment Rocket / Wedge -->
+    <g>
+      <path d="M150 150 L204 204 L190 212 L164 210 L136 182 Z" fill="url(#q-tail-light)" />
+      <polygon points="166,166 186,168 162,192" fill="#FDE047" />
+      <circle cx="208" cy="208" r="4.5" fill="#FDE047" />
+      <circle cx="218" cy="218" r="3" fill="#EA580C" />
+    </g>
+  </g>
+
+  <!-- Right: Typography -->
+  <g transform="translate(280, 0)">
+    <!-- Main Title "Qwiki" + "Builder" -->
+    <text x="0" y="132" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="88" font-weight="900" letter-spacing="-1.5">
+      <tspan fill="#0F172A">Qwiki</tspan><tspan fill="#4F46E5">Builder</tspan>
+    </text>
+
+    <!-- Tagline / Subtitle Pill -->
+    <g transform="translate(2, 160)">
+      <rect x="0" y="0" width="220" height="34" rx="8" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5" />
+      <text x="18" y="22" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700" fill="#4338CA" letter-spacing="1.2">
+        DOCUMENTATION ENGINE
+      </text>
+
+      <text x="240" y="23" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="500" fill="#475569">
+        Automated Manuals &amp; Wiki Deployment
+      </text>
+    </g>
+  </g>
+</svg>

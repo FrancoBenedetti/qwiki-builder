@@ -84,10 +84,38 @@ Follow these strict writing conventions for all generated Markdown files:
      ```
 5. **Zero-JS Print & Export Standards**:
    - Qwiki renders documents cleanly for browser print (`Ctrl+P`). Avoid raw HTML styling hacks, external JavaScript dependencies, or oversized unoptimized graphics.
-6. **Image & Diagram Links**:
-   - Store local screenshots in `docs/assets/images/`.
-   - Reference images using standard markdown: `![Alt description](assets/images/screenshot.png)`.
-   - Qwiki Builder automatically uploads local assets and rewrites URLs during publishing.
+6. **Visual Media & Documentation Assets (Screenshots, Generated Graphics & Videos)**:
+   - **Never produce walls of dry text alone** when visual illustration adds cognitive clarity or operational value.
+   - **Canonical Production Reference**: Look at `/Documents/MobioPlus/user-docs` deployed to `https://wiki.mobioplus.co.za/user-docs` (e.g., `01-operational-guide/01-geocrm/01-overview-and-navigation.md`). This suite includes full-resolution user interface captures and zoomed workflow inspections (`crm_map_preview.png`, `crm_map_zoomed_preview.png`) uploaded to `uploads/images/` and seamlessly rendered in the documentation.
+   - **Supported Media Types**:
+     - **Screenshots & UI Mockups**: `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`, `.gif`. Store locally in `docs/assets/images/`.
+     - **Generated Graphics & Diagrams**: Complex architectural topologies, flowcharts, and system schematics generated as images or SVGs. Store locally in `docs/assets/images/`.
+     - **Video Screencasts & Demos**: `.mp4`, `.webm`, `.ogg`, `.ogv`, `.mov`. Store locally in `docs/assets/videos/`. Standalone Qwiki also natively supports external links from YouTube, Vimeo, and Loom.
+   - **Markdown Media Syntax**:
+     - Images & Screenshots:
+       ```markdown
+       ![MoBioplus GeoCRM Territory Map Overview](assets/images/crm_map_preview.png)
+       ```
+     - Auto-Embedded HTML5 Video Player (local MP4/WebM):
+       ```markdown
+       [Feature Walkthrough Video](assets/videos/feature-walkthrough.mp4)
+       ```
+       or
+       ```markdown
+       ![Feature Walkthrough](assets/videos/feature-walkthrough.mp4)
+       ```
+     - External Hosted Video Embeds:
+       Place standalone YouTube, Vimeo, or Loom URLs on their own line with blank lines before and after:
+       ```markdown
+       https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+       [Loom Walkthrough](https://www.loom.com/share/d46d0a7a40b3438ea238e8ba73a9042c)
+       ```
+   - **Automated In-Place Upload & URL Rewriting**:
+     - Author documents using local asset references (e.g., `assets/images/...`, `assets/videos/...`).
+     - During `qwiki-builder publish` (or `qwiki-builder upload-assets`), Qwiki Builder automatically uploads new or modified files via Qwiki's headless REST API (`action=upload_image` / `upload_asset`).
+     - Asset paths in Markdown and HTML (`<img>`, `<video>`, `<source>`) are automatically rewritten to permanent remote URLs (e.g. `uploads/images/1792-overview.png`, `uploads/videos/1792-demo.mp4`).
+     - Qwiki Builder caches asset timestamps in `.uploaded_assets.json` to prevent unnecessary re-uploads.
 
 ### Step 5: Pre-Flight Validation
 Always run the validation engine before publishing:

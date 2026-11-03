@@ -44,4 +44,5 @@ Trigger this skill on mentions of:
 2. **Mermaid Diagrams**: Visual flowcharts (`flowchart TD`) and sequence diagrams (`sequenceDiagram`).
 3. **Structured Tables**: Use markdown tables for data, specs, and checklists.
 4. **Zero-JS Print**: Ensure clean rendering without bespoke JavaScript or external style dependencies.
-5. **Validation First**: Always run `qwiki-builder validate` before executing `qwiki-builder publish`.
+5. **Visual Media & Documentation Assets**: Include UI screenshots (`assets/images/`), generated graphics, and video walkthroughs (`assets/videos/` or YouTube/Vimeo/Loom links) whenever they add value (see the `/Documents/MobioPlus/user-docs` reference deployed to `wiki.mobioplus.co.za/user-docs`). Standalone video links auto-convert into native players.
+6. **Validation First**: Always run `qwiki-builder validate` before executing `qwiki-builder publish`. Asset references are checked and then automatically uploaded and rewritten to remote Qwiki URLs during publishing.

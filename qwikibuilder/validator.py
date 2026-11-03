@@ -52,6 +52,7 @@ class ProjectValidator:
             "categories": len(self.manifest.categories),
             "documents": len(self.manifest.documents),
             "images": 0,
+            "videos": 0,
             "word_count": 0,
         }
 
@@ -138,11 +139,16 @@ class ProjectValidator:
                 if len(content.strip()) == 0:
                     issues.append(ValidationIssue("WARNING", "Documents", "Document file is empty", file=doc.file))
 
-                # Check images
+                # Check images and media assets
                 img_matches = re.findall(r"!\[(.*?)\]\((.*?)\)", content)
                 for alt, img_path in img_matches:
-                    stats["images"] += 1
                     clean_path = img_path.split("?")[0].split("#")[0]
+                    ext = Path(clean_path).suffix.lower()
+                    if ext in (".mp4", ".webm", ".ogg", ".ogv", ".mov"):
+                        stats["videos"] += 1
+                    else:
+                        stats["images"] += 1
+
                     if not re.match(r"^https?://", clean_path, re.IGNORECASE) and not clean_path.startswith("data:"):
                         c1 = (doc_file.parent / clean_path).resolve()
                         c2 = (self.assets_path / clean_path).resolve()
@@ -152,7 +158,58 @@ class ProjectValidator:
                                 ValidationIssue(
                                     "WARNING",
                                     "Assets",
-                                    f"Referenced image file not found on disk: '{clean_path}'",
+                                    f"Referenced image/media asset not found on disk: '{clean_path}'",
+                                    file=doc.file,
+                                )
+                            )
+
+                # Check markdown video links: [label](path.mp4)
+                video_link_matches = re.findall(
+                    r"(?<!\!)\[(.*?)\]\(([^)]+?\.(?:mp4|webm|ogg|ogv|mov)(?:[?#][^)]*)?)\)",
+                    content,
+                    re.IGNORECASE,
+                )
+                for label, vid_path in video_link_matches:
+                    stats["videos"] += 1
+                    clean_path = vid_path.split("?")[0].split("#")[0]
+                    if not re.match(r"^https?://", clean_path, re.IGNORECASE) and not clean_path.startswith("data:"):
+                        c1 = (doc_file.parent / clean_path).resolve()
+                        c2 = (self.assets_path / clean_path).resolve()
+                        c3 = (self.assets_path / Path(clean_path).name).resolve()
+                        if not any(c.is_file() for c in (c1, c2, c3)):
+                            issues.append(
+                                ValidationIssue(
+                                    "WARNING",
+                                    "Assets",
+                                    f"Referenced video asset not found on disk: '{clean_path}'",
+                                    file=doc.file,
+                                )
+                            )
+
+                # Check HTML media tags: <img ...>, <video ...>, <source ...>
+                html_media_matches = re.findall(
+                    r'<(img|video|source)\b[^>]*?\bsrc=["\']([^"\']+)["\']',
+                    content,
+                    re.IGNORECASE,
+                )
+                for tag_name, src_path in html_media_matches:
+                    clean_path = src_path.split("?")[0].split("#")[0]
+                    ext = Path(clean_path).suffix.lower()
+                    if tag_name.lower() in ("video", "source") or ext in (".mp4", ".webm", ".ogg", ".ogv", ".mov"):
+                        stats["videos"] += 1
+                    else:
+                        stats["images"] += 1
+
+                    if not re.match(r"^https?://", clean_path, re.IGNORECASE) and not clean_path.startswith("data:"):
+                        c1 = (doc_file.parent / clean_path).resolve()
+                        c2 = (self.assets_path / clean_path).resolve()
+                        c3 = (self.assets_path / Path(clean_path).name).resolve()
+                        if not any(c.is_file() for c in (c1, c2, c3)):
+                            issues.append(
+                                ValidationIssue(
+                                    "WARNING",
+                                    "Assets",
+                                    f"Referenced HTML media asset not found on disk: '{clean_path}'",
                                     file=doc.file,
                                 )
                             )

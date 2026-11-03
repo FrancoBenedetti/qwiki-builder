@@ -148,7 +148,7 @@ Runs local pre-flight checks:
 ### `qwiki-builder publish [manifest] [--dry-run] [--reload]`
 Synchronizes the entire documentation suite:
 - Creates missing categories on the remote wiki automatically.
-- Pre-uploads image assets from `assets_dir` and rewrites paths in Markdown.
+- Pre-uploads image and media assets (screenshots, diagrams, MP4/WebM videos) from `assets_dir` and rewrites paths in Markdown and HTML.
 - Publishes or updates documents in-place using stable slugs.
 - `--dry-run`: Simulates the publication without network mutations.
 - `--reload`: Purges existing chapters in target categories and performs a pristine reload.
@@ -161,7 +161,34 @@ qwiki-builder update docs/01-specifications/01-system-overview.md
 ```
 
 ### `qwiki-builder upload-assets [manifest]`
-Uploads all images and media assets located in `assets_dir` to Qwiki.
+Uploads all images, screenshots, generated visuals, and video assets located in `assets_dir` to Qwiki.
+
+---
+
+## 📸 Visual Media, Screenshots & Video Embedding
+
+Qwiki Builder and Standalone Qwiki treat visual media as first-class documentation elements:
+
+1. **Screenshots & UI Mockups**:
+   - Save screenshots directly in `docs/assets/images/`.
+   - Reference via standard markdown: `![GeoCRM Interface](assets/images/crm_map_preview.png)`.
+   - Automatically uploaded to `uploads/images/` and rewritten to permanent URLs during publishing.
+   - Reference example: see `/Documents/MobioPlus/user-docs` deployed to `https://wiki.mobioplus.co.za/user-docs`.
+
+2. **Generated Images & Diagrams**:
+   - Complex architectural schemas, data flows, and infographics can be saved as `.png`, `.svg`, or `.webp` in `docs/assets/images/`.
+   - Native Mermaid diagrams (` ```mermaid `) render client-side without external dependencies.
+
+3. **Video Walkthroughs & Screencasts**:
+   - Local videos (`.mp4`, `.webm`, `.ogg`, `.mov`) stored in `docs/assets/videos/` are automatically uploaded to `uploads/videos/`.
+   - Standalone Markdown video links convert into embedded HTML5 players:
+     ```markdown
+     [Watch Territory Planning Demo](assets/videos/demo.mp4)
+     ```
+   - External videos (YouTube, Vimeo, Loom) convert automatically into responsive embeds when their URL is placed on its own line:
+     ```markdown
+     https://www.youtube.com/watch?v=dQw4w9WgXcQ
+     ```
 
 ### `qwiki-builder list [manifest] [--book-id ID]`
 Queries the remote Qwiki API, lists registered chapters, and highlights duplicate titles or suffixed slugs.

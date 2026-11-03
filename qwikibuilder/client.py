@@ -270,6 +270,11 @@ class QwikiClient:
             ".webp": "image/webp",
             ".svg": "image/svg+xml",
             ".gif": "image/gif",
+            ".mp4": "video/mp4",
+            ".webm": "video/webm",
+            ".ogg": "video/ogg",
+            ".ogv": "video/ogg",
+            ".mov": "video/quicktime",
             ".pdf": "application/pdf",
         }
         content_type = content_types.get(ext, "application/octet-stream")
@@ -280,7 +285,7 @@ class QwikiClient:
         body_bytes.extend(b'Content-Disposition: form-data; name="action"\r\n\r\n')
         body_bytes.extend(b"upload_image\r\n")
 
-        # image file part
+        # image / asset file part
         body_bytes.extend(f"--{boundary}\r\n".encode("utf-8"))
         body_bytes.extend(
             f'Content-Disposition: form-data; name="image"; filename="{filename}"\r\n'.encode("utf-8")
@@ -309,6 +314,10 @@ class QwikiClient:
                 return res
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")
-            raise QwikiClientError(f"HTTP {e.code} during image upload: {err_body}") from e
+            raise QwikiClientError(f"HTTP {e.code} during image/asset upload: {err_body}") from e
         except Exception as e:
-            raise QwikiClientError(f"Image upload error: {e}") from e
+            raise QwikiClientError(f"Image/asset upload error: {e}") from e
+
+    def upload_asset(self, file_path: Path) -> Dict[str, Any]:
+        """Alias for upload_image supporting images, generated graphics, and videos."""
+        return self.upload_image(file_path)
