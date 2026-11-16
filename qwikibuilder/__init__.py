@@ -10,6 +10,7 @@ from .client import QwikiClient
 from .links import LinkManager
 from .manifest import QwikiProjectManifest, CategoryItem, DocumentItem
 from .publisher import QwikiPublisher
+from .sync import SyncManager
 from .validator import ProjectValidator
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "CategoryItem",
     "DocumentItem",
     "QwikiPublisher",
+    "SyncManager",
     "ProjectValidator",
 ]

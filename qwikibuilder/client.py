@@ -17,10 +17,19 @@ from typing import Any, Dict, List, Optional
 
 class QwikiClientError(Exception):
     """Raised when an API request to Qwiki fails."""
-    def __init__(self, message: str, status_code: Optional[int] = None, response_body: Optional[str] = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        response_body: Optional[str] = None,
+        error_code: Optional[str] = None,
+        response_data: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.response_body = response_body
+        self.error_code = error_code
+        self.response_data = response_data or {}
 
 
 class QwikiClient:
@@ -40,11 +49,13 @@ class QwikiClient:
         self.max_retries = max_retries
         self.user_agent = user_agent
 
-        # Resolve publish endpoint
+        # Resolve publish and llm endpoints
         if self.base_url.endswith("api/publish.php"):
             self.publish_endpoint = self.base_url
+            self.llm_endpoint = self.base_url[:-len("api/publish.php")] + "api/llm.php"
         else:
             self.publish_endpoint = f"{self.base_url}/api/publish.php"
+            self.llm_endpoint = f"{self.base_url}/api/llm.php"
 
     def _headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         headers = {
@@ -95,10 +106,16 @@ class QwikiClient:
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode("utf-8", errors="replace")
                 err_msg = err_body
+                err_code = None
+                parsed_data: Dict[str, Any] = {}
                 try:
                     parsed = json.loads(err_body)
-                    if isinstance(parsed, dict) and "error" in parsed:
-                        err_msg = str(parsed["error"])
+                    if isinstance(parsed, dict):
+                        parsed_data = parsed
+                        if "error" in parsed:
+                            err_msg = str(parsed["error"])
+                        if "code" in parsed:
+                            err_code = str(parsed["code"])
                 except Exception:
                     pass
 
@@ -111,7 +128,11 @@ class QwikiClient:
                     f"HTTP {e.code}: {err_msg}",
                     status_code=e.code,
                     response_body=err_body,
+                    error_code=err_code,
+                    response_data=parsed_data,
                 ) from e
+            except QwikiClientError:
+                raise
             except urllib.error.URLError as e:
                 last_error = e
                 if attempt < effective_retries:
@@ -150,7 +171,7 @@ class QwikiClient:
         if description:
             payload["description"] = description
         if parent:
-            payload["parent"] = parent
+            payload["parentId"] = parent
         res = self.post(payload)
         if not res.get("success"):
             raise QwikiClientError(res.get("error", f"Failed to create category '{category_id}'"))
@@ -165,6 +186,109 @@ class QwikiClient:
         if not res.get("success"):
             raise QwikiClientError(res.get("error", "Failed to list chapters"))
         return res.get("chapters", [])
+
+    def get_document(
+        self,
+        slug: Optional[str] = None,
+        share_key: Optional[str] = None,
+        book_id: Optional[str] = None,
+        file_path: Optional[str] = None,
+        include_comments: bool = True,
+        include_talk: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Pulls a remote document's raw content, SHA-256, lock state, metadata,
+        comments, and talk page via api/publish.php?action=get_doc.
+        Falls back to api/llm.php if the remote server runs an older version without get_doc.
+        """
+        payload: Dict[str, Any] = {
+            "action": "get_doc",
+            "include_comments": "1" if include_comments else "0",
+            "include_talk": "1" if include_talk else "0",
+        }
+        if slug:
+            payload["slug"] = slug
+        if share_key:
+            payload["shareKey"] = share_key
+        if book_id:
+            payload["bookId"] = book_id
+        if file_path:
+            payload["file"] = file_path
+
+        try:
+            res = self.post(payload)
+            if not res.get("success") or "document" not in res:
+                raise QwikiClientError(res.get("error", f"Failed to pull document '{slug or share_key or file_path}'"))
+            return res["document"]
+        except QwikiClientError as e:
+            # Older Standalone Qwiki servers fall through unknown actions to publish_doc validation
+            if (
+                slug
+                and e.status_code == 400
+                and "bookId, title, and content are required" in str(e)
+            ):
+                return self._get_document_via_llm_fallback(
+                    slug=slug,
+                    include_comments=include_comments,
+                    include_talk=include_talk,
+                )
+            raise
+
+    def _get_document_via_llm_fallback(
+        self,
+        slug: str,
+        include_comments: bool = True,
+        include_talk: bool = True,
+    ) -> Dict[str, Any]:
+        """Fallback pull via api/llm.php for older Standalone Qwiki versions."""
+        import hashlib
+
+        query = urllib.parse.urlencode({
+            "mode": "doc",
+            "slug": slug,
+            "include_comments": "1" if include_comments else "0",
+            "include_talk": "1" if include_talk else "0",
+        })
+        req = urllib.request.Request(
+            f"{self.llm_endpoint}?{query}",
+            headers=self._headers(),
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")
+            raise QwikiClientError(f"HTTP {e.code} from api/llm.php: {err_body}", status_code=e.code, response_body=err_body) from e
+
+        if not data.get("success") or "document" not in data:
+            raise QwikiClientError(data.get("error", f"Failed to pull '{slug}' via api/llm.php"))
+
+        doc = data["document"]
+        content = doc.get("content", "")
+        return {
+            "docId": "",
+            "bookId": doc.get("category", ""),
+            "slug": doc.get("slug", slug),
+            "title": doc.get("title", ""),
+            "type": doc.get("type", "markdown"),
+            "file": "",
+            "status": "published",
+            "description": doc.get("description", ""),
+            "shareKey": "",
+            "url": doc.get("url", ""),
+            "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "dateModified": doc.get("date_modified", ""),
+            "lock": {"locked": False},
+            "content": content,
+            "commentsEnabled": doc.get("comments_enabled", False),
+            "commentsCount": len(doc.get("comments") or []),
+            "comments": doc.get("comments") or [],
+            "talkEnabled": doc.get("talk_enabled", False),
+            "talkTopicsCount": len(doc.get("talk") or []),
+            "talkTopics": doc.get("talk") or [],
+            "talkRaw": doc.get("talk_raw", ""),
+            "_fallback_llm_api": True,
+        }
 
     def publish_document(
         self,
@@ -182,6 +306,8 @@ class QwikiClient:
         approver: Optional[str] = None,
         note: Optional[str] = None,
         clean_source: bool = False,
+        expected_sha256: Optional[str] = None,
+        force: bool = False,
     ) -> Dict[str, Any]:
         """Publishes or updates a document (markdown or html) on Qwiki."""
         payload: Dict[str, Any] = {
@@ -209,6 +335,10 @@ class QwikiClient:
             payload["note"] = note
         if clean_source:
             payload["clean_source"] = "1"
+        if expected_sha256:
+            payload["expectedSha256"] = expected_sha256
+        if force:
+            payload["force"] = "1"
 
         res = self.post(payload)
         if not res.get("success"):

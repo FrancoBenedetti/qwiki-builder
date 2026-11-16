@@ -22,13 +22,18 @@ Supported document suites include:
 
 ```mermaid
 flowchart TD
-    A["1. Intake & Classification"] --> B["2. Scaffold Project (CLI Init)"]
-    B --> C["3. Design Information Architecture (qwiki-project.json)"]
-    C --> D["4. Author High-Quality Content (.md)"]
-    D --> E["5. Pre-Flight Validation (qwiki-builder validate)"]
-    E -->|Errors Detected| D
-    E -->|Valid| F["6. Deploy to Qwiki (qwiki-builder publish)"]
-    F --> G["7. Deduplication & Sync Check"]
+    A["1. Intake & Target Check"] --> B{"Already Published<br/>on Remote Qwiki?"}
+    B -->|No: New Suite| C["2. Scaffold Project (qwiki-builder init)"]
+    C --> D["3. Design Architecture (qwiki-project.json)"]
+    D --> E["4. Author Content (.md)"]
+    B -->|Yes: Existing Doc| P1["2b. Pull Live Doc, Comments & Talk (JSON)"]
+    P1 --> P2["3b. Triage Feedback & 3-Way Diff/Merge"]
+    P2 --> E
+    E --> F["5. Pre-Flight Validation (qwiki-builder validate)"]
+    F -->|Errors Detected| E
+    F -->|Valid| G["6. Concurrency Check & Dry-Run"]
+    G --> H["7. Deploy In-Place (publish / update)"]
+    H --> I["8. Dedup Check & Close Talk/Comment Loop"]
 ```
 
 ### Step 1: Intake & Information Extraction
@@ -59,6 +64,33 @@ qwiki-builder init safety-handbook --template safety-handbook --name "EHS Safety
 # Example: SOP Library
 qwiki-builder init sop-library --template sop --name "Standard Operating Procedures"
 ```
+
+### Step 2b: Pull Live State Before Amending Published Documents (Mandatory for Updates)
+Whenever a target chapter is **already published** on Standalone Qwiki (verify first with `qwiki-builder list` or `qwiki-builder diff <file-or-slug>`), **never** edit and re-upload solely from local files. Users may have edited the document directly in the Qwiki UI, uploaded new media into `uploads/`, modified chapter status/metadata, or added feedback in **Comments** (`tool-comments`) and the **Talk Page** (`tool-talk`).
+
+1. **Pull Live Document, Comments & Talk Page**:
+   ```bash
+   # Inspect differences, metadata drift, active lock, and discussion counts first (read-only)
+   qwiki-builder diff <file-or-slug>
+
+   # Pull live content + sidecar feedback + SHA-256 baseline (add --sync-meta to align title/status/description)
+   qwiki-builder pull <file-or-slug> --sync-meta
+   # Or pull the entire suite:
+   qwiki-builder pull --all --sync-meta
+   ```
+   - `qwiki-builder pull` calls `api/publish.php?action=get_doc`, which retrieves **verbatim Markdown or HTML** across all lifecycle statuses (`published`, `review`, `draft`, `archived`), active `LockManager` editor lock state, `sha256`, `comments`, and `talk`.
+   - It saves the remote `sha256` and 3-way merge base under `.qwiki-sync/state.json` and `.qwiki-sync/base/`, and writes live discussions to `.qwiki-sync/feedback/<bookId>__<slug>.feedback.md` (and `.json`) so internal comments and Talk threads are **never** concatenated into your document file.
+   - **Legacy Server Fallback**: If the remote Standalone Qwiki is an older version without `action=get_doc`, `pull` automatically falls back to `api/llm.php?mode=doc&slug=<slug>&include_comments=1&include_talk=1` (JSON mode—note that `api/llm.php` strips HTML tags on `type=html`, hides `draft`/`archived` chapters, and rewrites relative URLs to absolute URLs, so export raw source from the Qwiki UI for HTML/drafts on older servers).
+
+2. **Triage Comments & Talk Page Feedback**:
+   Read `.qwiki-sync/feedback/<bookId>__<slug>.feedback.md` (or `.feedback.json`) separately from the document content:
+   - Classify each open comment/Talk topic as: **(a) Actionable amendment**, **(b) Clarification needed from user**, or **(c) Already resolved / out of scope**.
+   - Check whether any live-uploaded media (`uploads/images/...`, `uploads/videos/...`) was added by UI editors—preserve those references (`qwiki-builder validate` automatically skips missing-on-disk warnings for `uploads/...` paths).
+
+3. **3-Way Diff & Merge (`Base` vs `Local` vs `Remote`)**:
+   - If you have unpushed local edits and the remote file also changed since the last synced base, `pull` attempts a clean `diff3` auto-merge; if edits overlap, it keeps your local file intact and writes the remote copy to `.qwiki-sync/conflicts/<bookId>__<slug>.remote.<ext>` with exit code `1` so nothing is clobbered.
+   - Preserve legitimate live user edits (typo fixes, added examples, UI formatting adjustments) alongside your new amendments and triaged Comments/Talk resolutions.
+   - **Preserve Chapter Identity**: Keep `category` (`bookId`), `slug`, and `shareKey` unchanged in `qwiki-project.json`. Comments (`data/comments/{bookId}__{slug}.json`) and Talk pages (`data/talk/{bookId}__{slug}.talk.md`) are keyed by `{bookId}__{slug}`, so renaming a slug or moving categories without migrating them will orphan discussions.
 
 ### Step 3: Information Architecture (`qwiki-project.json`)
 Open `qwiki-project.json` and align the navigation categories and chapter slugs:
@@ -118,42 +150,55 @@ Follow these strict writing conventions for all generated Markdown files:
      - Qwiki Builder caches asset timestamps in `.uploaded_assets.json` to prevent unnecessary re-uploads.
 
 ### Step 5: Pre-Flight Validation
-Always run the validation engine before publishing:
+Always run the validation engine before publishing or updating:
 
 ```bash
 qwiki-builder validate
 ```
-- Ensure zero errors. If errors exist (e.g., missing files, broken image links, duplicate slugs), rectify the markdown files or manifest immediately.
+- Ensure zero errors. If errors exist (e.g., missing files, broken image links, duplicate slugs), rectify the markdown files or manifest immediately. (Remote server `uploads/...` references preserved from live UI edits are automatically recognized without missing-asset warnings.)
 
-### Step 6: Deployment & Synchronization
-Publish the documentation suite to the remote Qwiki:
+### Step 6: Concurrency Check, Metadata Alignment & Dry-Run
+Before pushing an update to an already-published chapter:
+1. **Automated Optimistic Concurrency & Lock Guard**: When a chapter was pulled or previously published via `qwiki-builder`, its remote `sha256` is tracked in `.qwiki-sync/state.json`. Both `qwiki-builder update` and `qwiki-builder publish` automatically pass `expectedSha256` to `api/publish.php`.
+   - If another collaborator edited the page on the live wiki after your `pull`, the server returns `HTTP 409 (CONFLICT_SHA256_MISMATCH)`. Run `qwiki-builder diff <slug>` and `qwiki-builder pull <slug>` to merge before pushing.
+   - If a collaborator currently holds an active UI editor lease (`LockManager`), the server returns `HTTP 423 (LOCKED_BY_OTHER)`. Wait for them to finish or pass `--force` only if an intentional override is required.
+2. **Prevent Metadata Drift**: Confirm that `title`, `description`, `status` (`published` / `review` / `draft`), `category`, and `share_key` in `qwiki-project.json` match any intentional live changes made by administrators/reviewers (or pull with `--sync-meta`).
+3. **Preview Deployment**:
+   ```bash
+   # Preview single-chapter update or full-suite sync without modifying remote server
+   qwiki-builder update docs/01-specifications/01-system-overview.md --dry-run
+   # Or for the entire suite:
+   qwiki-builder publish --dry-run
+   ```
+
+### Step 7: In-Place Deployment & Synchronization
+Deploy changes in-place (Standalone Qwiki's `DocumentService::replaceContent()` automatically captures a pre-write revision snapshot in `data/revisions/{docId}/` when `tool-revisions` is enabled):
 
 ```bash
-# Preview what will be uploaded
-qwiki-builder publish --dry-run
+# Preferred for single-chapter amendments (avoids touching unrelated live-edited chapters):
+qwiki-builder update docs/01-specifications/01-system-overview.md
 
-# Live deployment (synchronizes categories, uploads assets, updates chapters in-place)
+# Or synchronize the entire documentation suite:
 qwiki-builder publish
 ```
 
-If the user wants to update an individual chapter without re-publishing the entire suite:
-```bash
-qwiki-builder update docs/01-specifications/01-system-overview.md
-```
+### Step 8: Deduplication, Safe Maintenance & Closing the Feedback Loop
+1. **Deduplication & Clean Reload Guardrails**:
+   If duplicate chapters or suffixed slugs (e.g. `doc-1`, `doc-2`) were introduced:
+   ```bash
+   # Inspect duplicates
+   qwiki-builder list
 
-### Step 7: Deduplication & Clean Maintenance
-If duplicate chapters or suffixed slugs (e.g. `doc-1`, `doc-2`) were previously introduced by accidental re-uploads:
+   # Preview and remove only accidental duplicates
+   qwiki-builder dedup --dry-run
+   qwiki-builder dedup
+   ```
+   > [!WARNING]
+   > **Never run `qwiki-builder reload` on a wiki with live user edits, active Comments, or Talk Page discussions** unless you have intentionally backed up and reconciled everything first. `reload` purges and recreates all chapters in target categories, wiping live chapter metadata and risking orphaned `data/comments/` and `data/talk/` associations if slugs or categories change.
 
-```bash
-# Inspect duplicates
-qwiki-builder list
-
-# Remove duplicates
-qwiki-builder dedup
-
-# Or execute a fresh, clean reload of canonical documents
-qwiki-builder reload
-```
+2. **Close the Talk Page & Comments Loop**:
+   - Because `qwk_llm_...` API keys are **read-only** for Comments (`tool-comments`) and Talk pages (`tool-talk`), automated agents cannot post replies or resolve Talk topics directly via `api/llm.php`.
+   - After re-uploading the amended document, provide the user/editor with a concise **Feedback Resolution Summary** listing each comment and Talk topic addressed (and any items intentionally deferred), so an authenticated editor/admin can reply in the Qwiki UI or archive resolved Talk topics. This prevents future update cycles from re-applying already-resolved feedback.
 
 ---
 

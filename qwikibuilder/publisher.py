@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .assets import AssetManager
-from .client import QwikiClient
+from .client import QwikiClient, QwikiClientError
 from .links import LinkManager
 from .manifest import DocumentItem, QwikiProjectManifest
+from .sync import SyncManager, sha256_text
 
 
 class QwikiPublisher:
@@ -26,6 +27,7 @@ class QwikiPublisher:
         self.project_root = manifest.project_root or Path.cwd()
         self.asset_manager = AssetManager(client, self.assets_path)
         self.link_manager = LinkManager(manifest)
+        self.sync_manager = SyncManager(manifest, client)
 
     def verify_and_create_categories(self, dry_run: bool = False) -> Dict[str, str]:
         """
@@ -62,9 +64,12 @@ class QwikiPublisher:
         doc: DocumentItem,
         update: bool = True,
         dry_run: bool = False,
+        force: bool = False,
+        expected_sha256: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Publishes a single document item: reads file, uploads/rewrites assets, and posts to Qwiki.
+        Applies optimistic concurrency checks via tracked .qwiki-sync SHA-256 unless force=True.
         """
         doc_file = (self.docs_path / doc.file).resolve()
         if not doc_file.is_file():
@@ -102,19 +107,53 @@ class QwikiPublisher:
                 "url": f"{self.client.base_url}/{doc.category}/{doc.slug}",
             }
 
-        res = self.client.publish_document(
-            book_id=doc.category,
-            title=doc.title,
-            content=processed_content,
-            slug=doc.slug,
+        effective_expected_sha = expected_sha256
+        if not effective_expected_sha and not force:
+            effective_expected_sha = self.sync_manager.get_expected_sha256(doc.slug)
+
+        try:
+            res = self.client.publish_document(
+                book_id=doc.category,
+                title=doc.title,
+                content=processed_content,
+                slug=doc.slug,
+                doc_type=doc.doc_type,
+                status=doc.status,
+                description=doc.description,
+                share_key=doc.share_key,
+                public_shareable=doc.public_shareable,
+                update=update,
+                overwrite=True,
+                approver="QwikiBuilder",
+                expected_sha256=effective_expected_sha,
+                force=force,
+            )
+        except QwikiClientError as e:
+            if e.error_code in ("CONFLICT_SHA256_MISMATCH", "LOCKED_BY_OTHER"):
+                raise QwikiClientError(
+                    f"{e} — Run 'qwiki-builder diff {doc.slug}' and 'qwiki-builder pull {doc.slug}' "
+                    f"to reconcile remote changes/feedback, or pass '--force' to override.",
+                    status_code=e.status_code,
+                    response_body=e.response_body,
+                    error_code=e.error_code,
+                    response_data=e.response_data,
+                ) from e
+            raise
+
+        new_sha = res.get("sha256") or sha256_text(processed_content)
+        self.sync_manager.record_synced_baseline(
+            slug=res.get("slug") or doc.slug,
+            book_id=res.get("bookId") or doc.category,
             doc_type=doc.doc_type,
-            status=doc.status,
-            description=doc.description,
-            share_key=doc.share_key,
-            public_shareable=doc.public_shareable,
-            update=update,
-            overwrite=True,
-            approver="QwikiBuilder",
+            remote_sha256=new_sha,
+            content=processed_content,
+            meta={
+                "docId": res.get("docId", ""),
+                "shareKey": res.get("shareKey") or doc.share_key or "",
+                "status": res.get("status") or doc.status,
+                "title": doc.title,
+                "dateModified": res.get("statusUpdatedAt", ""),
+            },
         )
         return res
 
@@ -122,6 +161,7 @@ class QwikiPublisher:
         self,
         dry_run: bool = False,
         upload_assets_first: bool = True,
+        force: bool = False,
     ) -> Dict[str, Any]:
         """
         Full synchronization: verifies categories, uploads assets, and publishes all documents.
@@ -152,7 +192,7 @@ class QwikiPublisher:
         for idx, doc in enumerate(self.manifest.documents, 1):
             tag = f"[{idx:>2}/{len(self.manifest.documents)}]"
             try:
-                res = self.publish_document_item(doc, update=True, dry_run=dry_run)
+                res = self.publish_document_item(doc, update=True, dry_run=dry_run, force=force)
                 results.append(res)
                 success_count += 1
                 status_tag = "🔄 Updated" if res.get("updated") else "✨ Created"

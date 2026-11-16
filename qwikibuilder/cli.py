@@ -24,6 +24,7 @@ from .config import (
 from .dedup import QwikiDeduplicator
 from .manifest import CategoryItem, DocumentItem, QwikiProjectManifest
 from .publisher import QwikiPublisher
+from .sync import SyncManager
 from .validator import ProjectValidator
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
@@ -309,9 +310,19 @@ def cmd_publish(args: argparse.Namespace) -> int:
         res = publisher.publish_all(
             dry_run=args.dry_run,
             upload_assets_first=not args.no_assets,
+            force=getattr(args, "force", False),
         )
 
     return 0 if res.get("success") else 1
+
+
+def _match_manifest_doc(manifest: QwikiProjectManifest, target: str) -> Optional[DocumentItem]:
+    """Finds a DocumentItem matching slug, shareKey, relative file path, filename, or stem."""
+    clean = target.strip()
+    for d in manifest.documents:
+        if clean in (d.slug, d.file, Path(d.file).name, Path(d.file).stem) or (d.share_key and clean == d.share_key):
+            return d
+    return None
 
 
 def cmd_update(args: argparse.Namespace) -> int:
@@ -319,13 +330,7 @@ def cmd_update(args: argparse.Namespace) -> int:
     manifest = _resolve_manifest(args.manifest)
     target = args.target.strip()
 
-    # Locate document item
-    matched_doc: Optional[DocumentItem] = None
-    for d in manifest.documents:
-        if target in (d.slug, d.file, Path(d.file).name, Path(d.file).stem):
-            matched_doc = d
-            break
-
+    matched_doc = _match_manifest_doc(manifest, target)
     if not matched_doc:
         print(f"❌ Error: Document '{target}' not found in manifest.")
         print("Available documents:")
@@ -338,17 +343,126 @@ def cmd_update(args: argparse.Namespace) -> int:
 
     print(f"🔄 Updating document in place: [{matched_doc.category}] {matched_doc.slug} ({matched_doc.file})...")
     try:
-        res = publisher.publish_document_item(matched_doc, update=True, dry_run=args.dry_run)
+        res = publisher.publish_document_item(
+            matched_doc,
+            update=True,
+            dry_run=args.dry_run,
+            force=getattr(args, "force", False),
+            expected_sha256=getattr(args, "expected_sha256", None),
+        )
         status_tag = "🔄 Updated in-place" if res.get("updated") else "✨ Created"
         print(f"✅ {status_tag} successfully!")
         print(f"   • Slug: {res.get('slug')}")
         print(f"   • URL:  {res.get('url')}")
         if res.get("shareKey"):
             print(f"   • Share Key: {res.get('shareKey')}")
+        if res.get("sha256"):
+            print(f"   • SHA-256:   {res.get('sha256')[:16]}...")
         return 0
     except Exception as e:
         print(f"❌ Update failed: {e}")
         return 1
+
+
+def cmd_pull(args: argparse.Namespace) -> int:
+    """Download published document(s), comments, and talk page from remote Qwiki before editing."""
+    manifest = _resolve_manifest(args.manifest)
+    client = _get_client(manifest, args)
+    sync = SyncManager(manifest, client)
+
+    targets: List[tuple] = []
+    if args.all or not args.target:
+        if not manifest.documents:
+            print("ℹ️ No documents registered in manifest.")
+            return 0
+        targets = [(d.slug, d) for d in manifest.documents]
+    else:
+        matched = _match_manifest_doc(manifest, args.target)
+        slug_val = matched.slug if matched else args.target.strip()
+        targets = [(slug_val, matched)]
+
+    has_conflicts_or_errors = False
+    for slug_val, doc in targets:
+        try:
+            res = sync.pull_document(
+                slug=slug_val,
+                doc=doc,
+                overwrite=args.overwrite,
+                sync_meta=args.sync_meta,
+            )
+            outcome = res["outcome"]
+            icon_map = {
+                "created": "✨ Downloaded",
+                "updated": "⬇️ Updated local",
+                "merged": "🔀 Auto-merged",
+                "up_to_date": "✅ Up to date",
+                "conflict": "⚠️ Conflict",
+            }
+            print(f"{icon_map.get(outcome, outcome)}: [{res['bookId']}] {res['slug']} ➔ {res['local_path']}")
+            print(
+                f"   • Comments: {res['comments_count']} | Talk topics: {res['talk_topics_count']} | "
+                f"Feedback digest: {res['feedback_md']}"
+            )
+            lock = res.get("lock") or {}
+            if lock.get("locked"):
+                print(
+                    f"   ⚠️ ACTIVE UI LOCK: Currently being edited by '{lock.get('user', 'Unknown')}' "
+                    f"(expires in {lock.get('expiresIn', 0)}s)"
+                )
+            if res.get("fallback_llm_api"):
+                print("   ℹ️ Pulled via legacy api/llm.php fallback (upgrade Standalone Qwiki for raw HTML/draft support).")
+            if outcome == "conflict":
+                has_conflicts_or_errors = True
+                print(
+                    f"   ⚠️ Local edits and remote changes diverged! Remote copy saved to: {res['conflict_path']}\n"
+                    f"      Merge manually into {res['local_path']}, then run 'qwiki-builder update {res['slug']} --force' "
+                    f"(or re-pull with '--overwrite')."
+                )
+        except Exception as e:
+            has_conflicts_or_errors = True
+            print(f"❌ Failed to pull '{slug_val}': {e}")
+
+    return 1 if has_conflicts_or_errors else 0
+
+
+def cmd_diff(args: argparse.Namespace) -> int:
+    """Show differences, metadata drift, active lock, and comment/talk counts vs remote Qwiki."""
+    manifest = _resolve_manifest(args.manifest)
+    matched = _match_manifest_doc(manifest, args.target)
+    slug_val = matched.slug if matched else args.target.strip()
+
+    client = _get_client(manifest, args)
+    sync = SyncManager(manifest, client)
+
+    try:
+        res = sync.diff_document(slug=slug_val, doc=matched)
+    except Exception as e:
+        print(f"❌ Diff failed for '{slug_val}': {e}")
+        return 1
+
+    rdoc = res["remote_doc"]
+    print("=" * 80)
+    print(f"🔍 DIFF REPORT: [{rdoc.get('bookId', '')}] {rdoc.get('slug', slug_val)}")
+    print(f"   • Local file:  {res['local_path']} ({'exists' if res['local_exists'] else 'missing'})")
+    print(f"   • Remote SHA:  {res['remote_sha256'][:16]}... | Tracked SHA: {(res['tracked_sha256'] or 'none')[:16]}")
+    print(f"   • Discussions: {res['comments_count']} comment(s), {res['talk_topics_count']} Talk topic(s)")
+    lock = res.get("lock") or {}
+    if lock.get("locked"):
+        print(f"   • Editor Lock: ⚠️ LOCKED by {lock.get('user', 'Unknown')} ({lock.get('expiresIn', 0)}s remaining)")
+    else:
+        print("   • Editor Lock: Unlocked")
+
+    if res["meta_diffs"]:
+        print("   • Metadata differences (local vs remote):")
+        for field_name, loc_val, rem_val in res["meta_diffs"]:
+            print(f"     - {field_name}: local={loc_val!r} vs remote={rem_val!r}")
+
+    print("=" * 80)
+    if res["diff_text"]:
+        print(res["diff_text"], end="" if res["diff_text"].endswith("\n") else "\n")
+    else:
+        print("✅ Local content matches remote content identically.")
+    return 0
 
 
 def cmd_upload_assets(args: argparse.Namespace) -> int:
@@ -529,6 +643,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_pub.add_argument("--dry-run", action="store_true", help="Preview publish actions without network modifications")
     p_pub.add_argument("--no-assets", action="store_true", help="Skip pre-uploading assets")
     p_pub.add_argument("--reload", action="store_true", help="Perform clean purge and reload of canonical docs")
+    p_pub.add_argument("--force", action="store_true", help="Bypass optimistic SHA-256 and active UI lock guards")
     p_pub.set_defaults(func=cmd_publish)
 
     # update
@@ -539,7 +654,30 @@ def build_parser() -> argparse.ArgumentParser:
     p_upd.add_argument("--url", help="Override remote Qwiki URL")
     p_upd.add_argument("--key", help="Override remote API key")
     p_upd.add_argument("--dry-run", action="store_true", help="Preview update without network modifications")
+    p_upd.add_argument("--force", action="store_true", help="Bypass optimistic SHA-256 and active UI lock guards")
+    p_upd.add_argument("--expected-sha256", help="Explicit remote SHA-256 baseline to enforce before overwriting")
     p_upd.set_defaults(func=cmd_update)
+
+    # pull
+    p_pul = subparsers.add_parser("pull", help="Download live document(s), comments, and talk pages before editing")
+    p_pul.add_argument("target", nargs="?", help="Relative file path, slug, or shareKey (omit or use --all for full suite)")
+    p_pul.add_argument("manifest", nargs="?", help="Path to qwiki-project.json or project directory")
+    p_pul.add_argument("-p", "--profile", help="Target named profile")
+    p_pul.add_argument("--url", help="Override remote Qwiki URL")
+    p_pul.add_argument("--key", help="Override remote API key")
+    p_pul.add_argument("--all", action="store_true", help="Pull all documents declared in qwiki-project.json")
+    p_pul.add_argument("--overwrite", action="store_true", help="Overwrite local edits with remote content")
+    p_pul.add_argument("--sync-meta", action="store_true", help="Sync title, status, and description from remote into qwiki-project.json")
+    p_pul.set_defaults(func=cmd_pull)
+
+    # diff
+    p_dif = subparsers.add_parser("diff", help="Diff local document against remote Qwiki state, lock, and discussions")
+    p_dif.add_argument("target", help="Relative file path, slug, or shareKey of the document to inspect")
+    p_dif.add_argument("manifest", nargs="?", help="Path to qwiki-project.json or project directory")
+    p_dif.add_argument("-p", "--profile", help="Target named profile")
+    p_dif.add_argument("--url", help="Override remote Qwiki URL")
+    p_dif.add_argument("--key", help="Override remote API key")
+    p_dif.set_defaults(func=cmd_diff)
 
     # upload-assets
     p_ast = subparsers.add_parser("upload-assets", help="Upload assets from assets_dir to remote Qwiki")

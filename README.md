@@ -145,18 +145,29 @@ Runs local pre-flight checks:
 - Checks local image references and flags missing files.
 - Inspects Mermaid diagram formatting for common syntax issues.
 
-### `qwiki-builder publish [manifest] [--dry-run] [--reload]`
+### `qwiki-builder publish [manifest] [--dry-run] [--reload] [--force]`
 Synchronizes the entire documentation suite:
 - Creates missing categories on the remote wiki automatically.
 - Pre-uploads image and media assets (screenshots, diagrams, MP4/WebM videos) from `assets_dir` and rewrites paths in Markdown and HTML.
-- Publishes or updates documents in-place using stable slugs.
+- Publishes or updates documents in-place using stable slugs with optimistic SHA-256 and active UI lock protection.
 - `--dry-run`: Simulates the publication without network mutations.
 - `--reload`: Purges existing chapters in target categories and performs a pristine reload.
+- `--force`: Bypasses optimistic SHA-256 and active UI editor lock guards.
 
-### `qwiki-builder update <file-or-slug> [manifest]`
-Updates a single document in place on Qwiki without re-publishing the rest of the suite.
+### `qwiki-builder pull [target] [manifest] [--all] [--overwrite] [--sync-meta]`
+Downloads already-published document(s), live Comments (`tool-comments`), Talk Page topics (`tool-talk`), and active lock state from Standalone Qwiki before amending:
+- Saves live discussions to `.qwiki-sync/feedback/<bookId>__<slug>.feedback.md` and `.json` (never mixing discussions into document files).
+- Tracks remote SHA-256 and 3-way merge base in `.qwiki-sync/`; auto-merges via `diff3` when clean, or preserves local edits and writes the remote copy to `.qwiki-sync/conflicts/` on overlapping edits.
+- `--sync-meta`: Aligns `title`, `status`, and `description` in `qwiki-project.json` with remote metadata.
+
+### `qwiki-builder diff <file-or-slug> [manifest]`
+Shows a unified diff between your local file and the live remote document, plus metadata diffs, active UI editor lock status, and Comment/Talk topic counts.
+
+### `qwiki-builder update <file-or-slug> [manifest] [--force] [--expected-sha256 HASH]`
+Updates a single document in place on Qwiki without re-publishing the rest of the suite, enforcing tracked SHA-256 concurrency and active editor lock checks unless `--force` is specified.
 
 ```bash
+qwiki-builder pull docs/01-specifications/01-system-overview.md --sync-meta
 qwiki-builder update docs/01-specifications/01-system-overview.md
 ```
 

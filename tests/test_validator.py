@@ -97,6 +97,7 @@ class TestValidator(unittest.TestCase):
             doc_content = (
                 "# Media Doc\n\n"
                 "Existing image: ![Existing](assets/images/existing.png)\n"
+                "Uploaded UI image: ![UI Upload](uploads/images/1799-ui-capture.png)\n"
                 "Missing image: ![Missing](assets/images/missing.png)\n"
                 "Video link: [Missing Video](assets/videos/missing.mp4)\n"
             )
@@ -114,11 +115,12 @@ class TestValidator(unittest.TestCase):
             report = validator.validate()
 
             self.assertTrue(report.is_valid)  # Missing assets are warnings, not errors
-            self.assertEqual(report.stats["images"], 2)
+            self.assertEqual(report.stats["images"], 3)
             self.assertEqual(report.stats["videos"], 1)
             warnings = [w.message for w in report.warnings]
             self.assertTrue(any("missing.png" in m for m in warnings))
             self.assertTrue(any("missing.mp4" in m for m in warnings))
+            self.assertFalse(any("1799-ui-capture.png" in m for m in warnings))
 
 
 if __name__ == "__main__":

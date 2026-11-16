@@ -148,20 +148,7 @@ class ProjectValidator:
                         stats["videos"] += 1
                     else:
                         stats["images"] += 1
-
-                    if not re.match(r"^https?://", clean_path, re.IGNORECASE) and not clean_path.startswith("data:"):
-                        c1 = (doc_file.parent / clean_path).resolve()
-                        c2 = (self.assets_path / clean_path).resolve()
-                        c3 = (self.assets_path / Path(clean_path).name).resolve()
-                        if not any(c.is_file() for c in (c1, c2, c3)):
-                            issues.append(
-                                ValidationIssue(
-                                    "WARNING",
-                                    "Assets",
-                                    f"Referenced image/media asset not found on disk: '{clean_path}'",
-                                    file=doc.file,
-                                )
-                            )
+                    self._check_local_asset(clean_path, doc_file.parent, doc.file, "image/media", issues)
 
                 # Check markdown video links: [label](path.mp4)
                 video_link_matches = re.findall(
@@ -172,19 +159,7 @@ class ProjectValidator:
                 for label, vid_path in video_link_matches:
                     stats["videos"] += 1
                     clean_path = vid_path.split("?")[0].split("#")[0]
-                    if not re.match(r"^https?://", clean_path, re.IGNORECASE) and not clean_path.startswith("data:"):
-                        c1 = (doc_file.parent / clean_path).resolve()
-                        c2 = (self.assets_path / clean_path).resolve()
-                        c3 = (self.assets_path / Path(clean_path).name).resolve()
-                        if not any(c.is_file() for c in (c1, c2, c3)):
-                            issues.append(
-                                ValidationIssue(
-                                    "WARNING",
-                                    "Assets",
-                                    f"Referenced video asset not found on disk: '{clean_path}'",
-                                    file=doc.file,
-                                )
-                            )
+                    self._check_local_asset(clean_path, doc_file.parent, doc.file, "video", issues)
 
                 # Check HTML media tags: <img ...>, <video ...>, <source ...>
                 html_media_matches = re.findall(
@@ -199,20 +174,7 @@ class ProjectValidator:
                         stats["videos"] += 1
                     else:
                         stats["images"] += 1
-
-                    if not re.match(r"^https?://", clean_path, re.IGNORECASE) and not clean_path.startswith("data:"):
-                        c1 = (doc_file.parent / clean_path).resolve()
-                        c2 = (self.assets_path / clean_path).resolve()
-                        c3 = (self.assets_path / Path(clean_path).name).resolve()
-                        if not any(c.is_file() for c in (c1, c2, c3)):
-                            issues.append(
-                                ValidationIssue(
-                                    "WARNING",
-                                    "Assets",
-                                    f"Referenced HTML media asset not found on disk: '{clean_path}'",
-                                    file=doc.file,
-                                )
-                            )
+                    self._check_local_asset(clean_path, doc_file.parent, doc.file, "HTML media", issues)
 
                 # Basic Mermaid diagram validation
                 self._validate_mermaid_blocks(content, doc.file, issues)
@@ -222,6 +184,34 @@ class ProjectValidator:
 
         is_valid = len([i for i in issues if i.level == "ERROR"]) == 0
         return ValidationReport(is_valid=is_valid, issues=issues, stats=stats)
+
+    def _check_local_asset(
+        self,
+        clean_path: str,
+        doc_dir: Path,
+        doc_file_name: str,
+        kind: str,
+        issues: List[ValidationIssue],
+    ) -> None:
+        """Checks whether a local asset reference exists on disk, skipping remote/uploaded URLs."""
+        if (
+            re.match(r"^https?://", clean_path, re.IGNORECASE)
+            or clean_path.startswith("data:")
+            or clean_path.lstrip("/").startswith("uploads/")
+        ):
+            return
+        c1 = (doc_dir / clean_path).resolve()
+        c2 = (self.assets_path / clean_path).resolve()
+        c3 = (self.assets_path / Path(clean_path).name).resolve()
+        if not any(c.is_file() for c in (c1, c2, c3)):
+            issues.append(
+                ValidationIssue(
+                    "WARNING",
+                    "Assets",
+                    f"Referenced {kind} asset not found on disk: '{clean_path}'",
+                    file=doc_file_name,
+                )
+            )
 
     def _validate_mermaid_blocks(self, content: str, file_name: str, issues: List[ValidationIssue]) -> None:
         """Checks for common Mermaid syntax pitfalls like unquoted parentheses in node text."""
