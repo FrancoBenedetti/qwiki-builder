@@ -575,6 +575,120 @@ def cmd_delete(args: argparse.Namespace) -> int:
         return 1
 
 
+def _get_client_optional_manifest(args: argparse.Namespace) -> tuple[Optional[QwikiProjectManifest], QwikiClient]:
+    """Resolves a QwikiClient, loading qwiki-project.json if available or falling back to global/env credentials."""
+    manifest_arg = getattr(args, "manifest", None)
+    manifest: Optional[QwikiProjectManifest] = None
+    if manifest_arg:
+        manifest = _resolve_manifest(manifest_arg)
+    else:
+        found = QwikiProjectManifest.find_manifest_file(Path.cwd())
+        if found:
+            manifest = QwikiProjectManifest.load(found)
+
+    client = _get_client(manifest or QwikiProjectManifest(), args)
+    return manifest, client
+
+
+def cmd_theme(args: argparse.Namespace) -> int:
+    """Manage and apply theme CSS stylesheets at site, category, or page level."""
+    import re
+
+    manifest, client = _get_client_optional_manifest(args)
+    action = args.theme_action
+
+    try:
+        if action == "list":
+            res = client.list_themes()
+            site_theme = res.get("siteTheme", "theme-default.css")
+            themes = res.get("themes", [])
+            print(f"🎨 Active site theme: {site_theme}")
+            print(f"📋 Available themes ({len(themes)}):")
+            for t in themes:
+                marker = " (active site default)" if t == site_theme else ""
+                print(f"   • {t}{marker}")
+            return 0
+
+        if action == "get":
+            res = client.get_theme(args.theme)
+            css = res.get("content", "")
+            if args.out:
+                out_path = Path(args.out).resolve()
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(css, encoding="utf-8")
+                print(f"✅ Saved '{args.theme}' to {out_path}")
+            else:
+                print(css)
+            return 0
+
+        if action == "upload":
+            css_path = Path(args.file).resolve()
+            if not css_path.is_file():
+                print(f"❌ Error: CSS file not found: {css_path}")
+                return 1
+            theme_name = args.name.strip() if args.name else css_path.name
+            if not re.match(r"^theme-[a-zA-Z0-9-]+\.css$", theme_name):
+                print(f"❌ Error: Theme filename '{theme_name}' must match 'theme-<name>.css'.")
+                return 1
+            res = client.save_theme(theme_name, css_path.read_text(encoding="utf-8"))
+            print(f"✅ Uploaded theme '{theme_name}' -> {res.get('url', '')}")
+            return 0
+
+        if action == "apply":
+            theme_ref = args.theme.strip()
+            local_css = Path(theme_ref).resolve()
+            if local_css.is_file():
+                theme_name = local_css.name
+                if not re.match(r"^theme-[a-zA-Z0-9-]+\.css$", theme_name):
+                    print(f"❌ Error: Theme filename '{theme_name}' must match 'theme-<name>.css'.")
+                    return 1
+                client.save_theme(theme_name, local_css.read_text(encoding="utf-8"))
+                print(f"🎨 Uploaded custom theme: {theme_name}")
+            else:
+                theme_name = theme_ref
+                if not re.match(r"^theme-[a-zA-Z0-9-]+\.css$", theme_name):
+                    print(f"❌ Error: Theme name '{theme_name}' must match 'theme-<name>.css'.")
+                    return 1
+
+            if not (args.site or args.category or args.slug):
+                print("❌ Error: Specify one target scope: --site, --category <id>, or --slug <slug>.")
+                return 1
+
+            if args.site:
+                client.set_site_theme(theme_name)
+                print(f"✅ Applied site-wide theme: {theme_name}")
+
+            if args.category:
+                client.update_category(category_id=args.category, theme=theme_name)
+                print(f"✅ Applied category theme to [{args.category}]: {theme_name}")
+
+            if args.slug:
+                remote_doc = client.get_document(slug=args.slug, include_comments=False, include_talk=False)
+                client.publish_document(
+                    book_id=remote_doc["bookId"],
+                    title=remote_doc["title"],
+                    content=remote_doc["content"],
+                    slug=remote_doc["slug"],
+                    doc_type=remote_doc.get("type", "markdown"),
+                    status=remote_doc.get("status", "published"),
+                    description=remote_doc.get("description", ""),
+                    share_key=remote_doc.get("shareKey") or None,
+                    public_shareable=bool(remote_doc.get("publicShareable", True)),
+                    update=True,
+                    overwrite=True,
+                    expected_sha256=remote_doc.get("sha256"),
+                    theme=theme_name,
+                )
+                print(f"✅ Applied page theme to '{args.slug}': {theme_name}")
+            return 0
+
+        print(f"❌ Unknown theme action: {action}")
+        return 1
+    except Exception as e:
+        print(f"❌ Theme command failed: {e}")
+        return 1
+
+
 # ==============================================================================
 # Argument Parsing Entry Point
 # ==============================================================================
@@ -723,6 +837,40 @@ def build_parser() -> argparse.ArgumentParser:
     p_del.add_argument("--key", help="Override remote API key")
     p_del.add_argument("--book-id", help="Category ID of the chapter")
     p_del.set_defaults(func=cmd_delete)
+
+    # theme
+    p_thm = subparsers.add_parser("theme", help="Manage and apply theme CSS stylesheets for site, category, or page")
+    thm_sub = p_thm.add_subparsers(dest="theme_action", required=True, help="Theme subcommands")
+
+    def _add_conn_args(sp: argparse.ArgumentParser) -> None:
+        sp.add_argument("--manifest", help="Path to qwiki-project.json or project directory")
+        sp.add_argument("-p", "--profile", help="Target named profile")
+        sp.add_argument("--url", help="Override remote Qwiki URL")
+        sp.add_argument("--key", help="Override remote API key")
+
+    p_thm_list = thm_sub.add_parser("list", help="List available remote themes and active site theme")
+    _add_conn_args(p_thm_list)
+    p_thm_list.set_defaults(func=cmd_theme)
+
+    p_thm_get = thm_sub.add_parser("get", help="Download a theme CSS file from remote Qwiki")
+    p_thm_get.add_argument("theme", help="Remote theme filename (e.g. theme-article-modern.css)")
+    p_thm_get.add_argument("-o", "--out", help="Write CSS to local file path instead of stdout")
+    _add_conn_args(p_thm_get)
+    p_thm_get.set_defaults(func=cmd_theme)
+
+    p_thm_up = thm_sub.add_parser("upload", help="Upload a custom theme-*.css file to remote Qwiki")
+    p_thm_up.add_argument("file", help="Path to local CSS file")
+    p_thm_up.add_argument("--name", help="Override remote theme filename (must match theme-*.css)")
+    _add_conn_args(p_thm_up)
+    p_thm_up.set_defaults(func=cmd_theme)
+
+    p_thm_app = thm_sub.add_parser("apply", help="Apply a theme CSS file to site, category, or page")
+    p_thm_app.add_argument("theme", help="Remote theme name (theme-*.css) or path to local CSS file")
+    p_thm_app.add_argument("--site", action="store_true", help="Apply as site-wide default theme")
+    p_thm_app.add_argument("--category", help="Apply to a specific category ID")
+    p_thm_app.add_argument("--slug", help="Apply to a specific page/chapter slug")
+    _add_conn_args(p_thm_app)
+    p_thm_app.set_defaults(func=cmd_theme)
 
     return parser
 

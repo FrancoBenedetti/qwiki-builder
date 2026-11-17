@@ -29,9 +29,55 @@ class QwikiPublisher:
         self.link_manager = LinkManager(manifest)
         self.sync_manager = SyncManager(manifest, client)
 
+    def sync_themes(self, dry_run: bool = False) -> Dict[str, str]:
+        """
+        Uploads any local custom theme CSS files referenced by site, categories, or documents,
+        and applies the site-level theme if configured in the manifest.
+        Returns a mapping of theme_ref -> remote_theme_filename.
+        """
+        refs: List[str] = []
+        if self.manifest.theme:
+            refs.append(self.manifest.theme)
+        for cat in self.manifest.categories:
+            if cat.theme:
+                refs.append(cat.theme)
+        for doc in self.manifest.documents:
+            if doc.theme:
+                refs.append(doc.theme)
+
+        resolved_map: Dict[str, str] = {}
+        uploaded_files: set[str] = set()
+
+        for ref in refs:
+            if ref in resolved_map:
+                continue
+            theme_name, local_path = self.manifest.resolve_theme_ref(ref)
+            if not theme_name:
+                continue
+            resolved_map[ref] = theme_name
+            if local_path is not None and theme_name not in uploaded_files:
+                if dry_run:
+                    print(f"🎨 [DRY-RUN] Would upload custom theme: {theme_name} ({local_path})")
+                else:
+                    css_content = local_path.read_text(encoding="utf-8")
+                    self.client.save_theme(theme_name, css_content)
+                    print(f"  🎨 Uploaded custom theme: {theme_name}")
+                uploaded_files.add(theme_name)
+
+        if self.manifest.theme:
+            site_theme_name = resolved_map.get(self.manifest.theme, self.manifest.theme)
+            if dry_run:
+                print(f"🎨 [DRY-RUN] Would set site theme: {site_theme_name}")
+            else:
+                self.client.set_site_theme(site_theme_name)
+                print(f"  🎨 Applied site theme: {site_theme_name}")
+
+        return resolved_map
+
     def verify_and_create_categories(self, dry_run: bool = False) -> Dict[str, str]:
         """
-        Verifies all manifest categories exist on remote Qwiki, creating any missing ones.
+        Verifies all manifest categories exist on remote Qwiki, creating any missing ones
+        and syncing category-level theme metadata when specified.
         Returns a mapping of category_id -> title.
         """
         if dry_run:
@@ -40,22 +86,32 @@ class QwikiPublisher:
 
         remote_list = self.client.list_categories()
         existing_ids = {c.get("id"): c.get("title", "") for c in remote_list}
+        existing_themes = {c.get("id"): c.get("theme", "") for c in remote_list}
 
         missing = [c for c in self.manifest.categories if c.id not in existing_ids]
         if missing:
             print(f"📁 Creating {len(missing)} missing remote category/categories...")
             for cat in missing:
+                cat_theme, _ = self.manifest.resolve_theme_ref(cat.theme)
                 res = self.client.create_category(
                     category_id=cat.id,
                     title=cat.title,
                     description=cat.description,
                     parent=cat.parent,
+                    theme=cat_theme,
                 )
                 if res.get("success"):
                     print(f"  ✅ Created category: [{cat.id}] \"{cat.title}\"")
                     existing_ids[cat.id] = cat.title
                 else:
                     raise RuntimeError(f"Failed to create category '{cat.id}': {res.get('error')}")
+
+        for cat in self.manifest.categories:
+            if cat.id in existing_ids and cat.theme:
+                cat_theme, _ = self.manifest.resolve_theme_ref(cat.theme)
+                if cat_theme and existing_themes.get(cat.id, "") != cat_theme:
+                    self.client.update_category(category_id=cat.id, title=cat.title, theme=cat_theme)
+                    print(f"  🎨 Applied category theme [{cat.id}]: {cat_theme}")
 
         return existing_ids
 
@@ -111,6 +167,10 @@ class QwikiPublisher:
         if not effective_expected_sha and not force:
             effective_expected_sha = self.sync_manager.get_expected_sha256(doc.slug)
 
+        doc_theme, doc_theme_path = self.manifest.resolve_theme_ref(doc.theme)
+        if doc_theme_path is not None:
+            self.client.save_theme(doc_theme, doc_theme_path.read_text(encoding="utf-8"))
+
         try:
             res = self.client.publish_document(
                 book_id=doc.category,
@@ -127,6 +187,7 @@ class QwikiPublisher:
                 approver="QwikiBuilder",
                 expected_sha256=effective_expected_sha,
                 force=force,
+                theme=doc_theme,
             )
         except QwikiClientError as e:
             if e.error_code in ("CONFLICT_SHA256_MISMATCH", "LOCKED_BY_OTHER"):
@@ -174,7 +235,8 @@ class QwikiPublisher:
         print(f"📚 Documents:   {len(self.manifest.documents)} registered chapters")
         print("=" * 80)
 
-        # 1. Categories
+        # 1. Themes & Categories
+        self.sync_themes(dry_run=dry_run)
         self.verify_and_create_categories(dry_run=dry_run)
 
         # 2. Pre-upload assets if requested

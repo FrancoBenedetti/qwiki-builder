@@ -50,15 +50,18 @@ class CategoryItem:
     description: str = ""
     parent: Optional[str] = None
     order: int = 0
+    theme: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> CategoryItem:
+        raw_theme = data.get("theme")
         return cls(
             id=str(data.get("id", "")).strip(),
             title=str(data.get("title", "")).strip(),
             description=str(data.get("description", "")).strip(),
             parent=data.get("parent"),
             order=int(data.get("order", 0)),
+            theme=str(raw_theme).strip() if raw_theme is not None and str(raw_theme).strip() else None,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -72,6 +75,8 @@ class CategoryItem:
             d["parent"] = self.parent
         if self.order:
             d["order"] = self.order
+        if self.theme:
+            d["theme"] = self.theme
         return d
 
 
@@ -87,9 +92,11 @@ class DocumentItem:
     share_key: Optional[str] = None
     public_shareable: bool = True
     order: int = 0
+    theme: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> DocumentItem:
+        raw_theme = data.get("theme")
         return cls(
             file=str(data.get("file", "")).strip(),
             category=str(data.get("category", "")).strip(),
@@ -101,6 +108,7 @@ class DocumentItem:
             share_key=data.get("share_key") or data.get("shareKey"),
             public_shareable=bool(data.get("public_shareable", data.get("publicShareable", True))),
             order=int(data.get("order", 0)),
+            theme=str(raw_theme).strip() if raw_theme is not None and str(raw_theme).strip() else None,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -120,6 +128,8 @@ class DocumentItem:
             d["public_shareable"] = False
         if self.order:
             d["order"] = self.order
+        if self.theme:
+            d["theme"] = self.theme
         return d
 
 
@@ -137,6 +147,7 @@ class QwikiProjectManifest:
     assets_dir: str = "docs/assets"
     default_status: str = "published"
     public_shareable: bool = True
+    theme: Optional[str] = None
     categories: List[CategoryItem] = field(default_factory=list)
     documents: List[DocumentItem] = field(default_factory=list)
     project_root: Optional[Path] = None
@@ -167,6 +178,7 @@ class QwikiProjectManifest:
         categories = [CategoryItem.from_dict(c) for c in raw.get("categories", [])]
         documents = [DocumentItem.from_dict(d) for d in raw.get("documents", [])]
 
+        raw_theme = raw.get("theme")
         manifest = cls(
             name=raw.get("name", "Online Documentation"),
             slug=raw.get("slug", "online-docs"),
@@ -180,6 +192,7 @@ class QwikiProjectManifest:
             assets_dir=raw.get("assets_dir", "docs/assets"),
             default_status=raw.get("default_status", "published"),
             public_shareable=bool(raw.get("public_shareable", True)),
+            theme=str(raw_theme).strip() if raw_theme is not None and str(raw_theme).strip() else None,
             categories=categories,
             documents=documents,
             project_root=manifest_path.parent,
@@ -214,6 +227,8 @@ class QwikiProjectManifest:
             data["wiki_url"] = self.wiki_url
         if self.api_key:
             data["api_key"] = self.api_key
+        if self.theme:
+            data["theme"] = self.theme
 
         data["categories"] = [c.to_dict() for c in self.categories]
         data["documents"] = [d.to_dict() for d in self.documents]
@@ -230,6 +245,25 @@ class QwikiProjectManifest:
         """Resolves absolute path to assets directory."""
         root = self.project_root or Path.cwd()
         return (root / self.assets_dir).resolve()
+
+    def resolve_theme_ref(self, theme_ref: Optional[str]) -> Tuple[Optional[str], Optional[Path]]:
+        """
+        Resolves a theme reference from manifest/category/document.
+        Returns (remote_theme_filename, local_css_path_if_exists).
+        """
+        if not theme_ref or not str(theme_ref).strip():
+            return None, None
+        ref = str(theme_ref).strip()
+        root = self.project_root or Path.cwd()
+        candidates = [
+            (root / ref).resolve(),
+            (self.get_docs_path() / ref).resolve(),
+            (self.get_assets_path() / ref).resolve(),
+        ]
+        for cand in candidates:
+            if cand.is_file():
+                return cand.name, cand
+        return Path(ref).name, None
 
     def auto_discover(self) -> None:
         """

@@ -273,12 +273,14 @@ class SyncManager:
 
         meta_diffs: List[Tuple[str, Any, Any]] = []
         if doc is not None:
+            loc_theme, _ = self.manifest.resolve_theme_ref(doc.theme)
             checks = [
                 ("title", doc.title, remote_doc.get("title", "")),
                 ("status", doc.status, remote_doc.get("status", "")),
                 ("description", doc.description, remote_doc.get("description", "")),
                 ("category", doc.category, remote_doc.get("bookId", "")),
                 ("share_key", doc.share_key or "", remote_doc.get("shareKey", "")),
+                ("theme", loc_theme or "", remote_doc.get("theme", "")),
             ]
             for field_name, loc_val, rem_val in checks:
                 if loc_val != rem_val and (loc_val or rem_val):
@@ -386,6 +388,12 @@ class SyncManager:
                 if remote_doc.get("description") is not None and doc.description != remote_doc["description"]:
                     doc.description = remote_doc["description"]
                     manifest_updated = True
+                if remote_doc.get("theme") is not None:
+                    rem_theme = remote_doc["theme"] or None
+                    loc_theme, _ = self.manifest.resolve_theme_ref(doc.theme)
+                    if loc_theme != rem_theme:
+                        doc.theme = rem_theme
+                        manifest_updated = True
         elif sync_meta:
             # Register newly discovered remote chapter into manifest
             if not any(c.id == book_id for c in self.manifest.categories):
@@ -407,6 +415,7 @@ class SyncManager:
                     doc_type=doc_type,
                     share_key=remote_doc.get("shareKey") or None,
                     public_shareable=bool(remote_doc.get("publicShareable", True)),
+                    theme=remote_doc.get("theme") or None,
                 )
             )
             manifest_updated = True

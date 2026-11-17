@@ -56,6 +56,10 @@ class ProjectValidator:
             "word_count": 0,
         }
 
+        # 0. Validate Site Theme
+        if self.manifest.theme:
+            self._validate_theme_ref(self.manifest.theme, "Site", None, issues)
+
         # 1. Validate Categories
         cat_ids: Set[str] = set()
         for cat in self.manifest.categories:
@@ -75,6 +79,8 @@ class ProjectValidator:
             cat_ids.add(cat.id)
             if not cat.title:
                 issues.append(ValidationIssue("WARNING", "Categories", f"Category '{cat.id}' has no title"))
+            if cat.theme:
+                self._validate_theme_ref(cat.theme, f"Category '{cat.id}'", None, issues)
 
         # 2. Validate Documents
         seen_slugs: Dict[str, str] = {}
@@ -107,6 +113,9 @@ class ProjectValidator:
                         file=doc.file,
                     )
                 )
+
+            if doc.theme:
+                self._validate_theme_ref(doc.theme, f"Document '{doc.slug}'", doc.file, issues)
 
             # Slug format and collisions
             if not doc.slug:
@@ -230,3 +239,32 @@ class ProjectValidator:
                             line=line_no,
                         )
                     )
+
+    def _validate_theme_ref(
+        self,
+        theme_ref: str,
+        scope_label: str,
+        file_hint: Optional[str],
+        issues: List[ValidationIssue],
+    ) -> None:
+        """Validates that a theme reference uses valid theme-*.css naming and exists on disk if path-like."""
+        theme_name, local_path = self.manifest.resolve_theme_ref(theme_ref)
+        if local_path is None and ("/" in theme_ref or "\\" in theme_ref):
+            issues.append(
+                ValidationIssue(
+                    "ERROR",
+                    "Themes",
+                    f"{scope_label} theme CSS file not found on disk: '{theme_ref}'",
+                    file=file_hint,
+                )
+            )
+            return
+        if not theme_name or not re.match(r"^theme-[a-zA-Z0-9-]+\.css$", theme_name):
+            issues.append(
+                ValidationIssue(
+                    "ERROR",
+                    "Themes",
+                    f"{scope_label} theme '{theme_ref}' must be named 'theme-<name>.css' (alphanumeric and hyphens only)",
+                    file=file_hint,
+                )
+            )

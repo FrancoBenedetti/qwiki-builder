@@ -161,6 +161,7 @@ class QwikiClient:
         title: str,
         description: str = "",
         parent: Optional[str] = None,
+        theme: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Creates or registers a category on the remote wiki."""
         payload = {
@@ -172,9 +173,34 @@ class QwikiClient:
             payload["description"] = description
         if parent:
             payload["parentId"] = parent
+        if theme is not None:
+            payload["theme"] = theme
         res = self.post(payload)
         if not res.get("success"):
             raise QwikiClientError(res.get("error", f"Failed to create category '{category_id}'"))
+        return res
+
+    def update_category(
+        self,
+        category_id: str,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        theme: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Updates an existing category's metadata or theme on the remote wiki."""
+        payload: Dict[str, Any] = {
+            "action": "update_category",
+            "id": category_id,
+        }
+        if title is not None:
+            payload["title"] = title
+        if description is not None:
+            payload["description"] = description
+        if theme is not None:
+            payload["theme"] = theme
+        res = self.post(payload)
+        if not res.get("success"):
+            raise QwikiClientError(res.get("error", f"Failed to update category '{category_id}'"))
         return res
 
     def list_chapters(self, book_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -308,6 +334,7 @@ class QwikiClient:
         clean_source: bool = False,
         expected_sha256: Optional[str] = None,
         force: bool = False,
+        theme: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Publishes or updates a document (markdown or html) on Qwiki."""
         payload: Dict[str, Any] = {
@@ -339,6 +366,8 @@ class QwikiClient:
             payload["expectedSha256"] = expected_sha256
         if force:
             payload["force"] = "1"
+        if theme is not None:
+            payload["theme"] = theme
 
         res = self.post(payload)
         if not res.get("success"):
@@ -356,6 +385,41 @@ class QwikiClient:
         res = self.post(payload)
         if not res.get("success"):
             raise QwikiClientError(res.get("error", f"Failed to delete chapter '{slug}'"))
+        return res
+
+    def list_themes(self) -> Dict[str, Any]:
+        """Lists available theme CSS files and the active site theme on the remote wiki."""
+        res = self.post({"action": "list_themes"})
+        if not res.get("success"):
+            raise QwikiClientError(res.get("error", "Failed to list themes"))
+        return res
+
+    def get_theme(self, theme: str) -> Dict[str, Any]:
+        """Downloads a theme CSS file's content from the remote wiki."""
+        res = self.post({"action": "get_theme", "theme": theme})
+        if not res.get("success"):
+            raise QwikiClientError(res.get("error", f"Failed to get theme '{theme}'"))
+        return res
+
+    def save_theme(self, theme: str, css_content: str) -> Dict[str, Any]:
+        """Uploads or updates a custom theme CSS file on the remote wiki."""
+        import base64
+
+        encoded = base64.b64encode(css_content.encode("utf-8")).decode("ascii")
+        res = self.post({
+            "action": "save_theme",
+            "theme": theme,
+            "content_base64": encoded,
+        })
+        if not res.get("success"):
+            raise QwikiClientError(res.get("error", f"Failed to save theme '{theme}'"))
+        return res
+
+    def set_site_theme(self, theme: str) -> Dict[str, Any]:
+        """Sets the site-wide default theme on the remote wiki."""
+        res = self.post({"action": "set_site_theme", "theme": theme})
+        if not res.get("success"):
+            raise QwikiClientError(res.get("error", f"Failed to set site theme '{theme}'"))
         return res
 
     def set_status(

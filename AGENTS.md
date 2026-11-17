@@ -148,6 +148,33 @@ Follow these strict writing conventions for all generated Markdown files:
      - During `qwiki-builder publish` (or `qwiki-builder upload-assets`), Qwiki Builder automatically uploads new or modified files via Qwiki's headless REST API (`action=upload_image` / `upload_asset`).
      - Asset paths in Markdown and HTML (`<img>`, `<video>`, `<source>`) are automatically rewritten to permanent remote URLs (e.g. `uploads/images/1792-overview.png`, `uploads/videos/1792-demo.mp4`).
      - Qwiki Builder caches asset timestamps in `.uploaded_assets.json` to prevent unnecessary re-uploads.
+7. **Custom Theme Stylesheets for Markdown Rendering (`theme-*.css`)**:
+   - **Naming & Scoping Rules**:
+     - Theme filenames must follow Standalone Qwiki's convention: `theme-<name>.css` (alphanumeric and hyphens only, e.g., `theme-technical-manual.css`).
+     - **Mandatory CSS Scoping:** Custom stylesheets intended for Markdown rendering **must scope selectors to `.content-body`** (and `@media print` if print styling is needed) so they don't inadvertently alter the sidebar, toolbar, or Toast UI editor layout.
+     - Example:
+       ```css
+       .content-body h2 {
+           border-bottom: 2px solid var(--accent-color);
+           padding-bottom: 0.35rem;
+       }
+       .content-body table {
+           font-size: 0.92rem;
+       }
+       @media print {
+           .content-body { font-size: 10.5pt; }
+       }
+       ```
+   - **3-Tier Hierarchy (`page` ➔ `category` ➔ `site`)**:
+     - Set `"theme"` at the root of `qwiki-project.json` (site-wide), on any entry in `"categories"` (category-wide), or on any entry in `"documents"` (page-specific). Values can be a built-in/remote theme name (e.g., `"theme-article-modern.css"`) or a local file path (e.g., `"docs/assets/themes/theme-custom.css"`), which `qwiki-builder publish` / `update` automatically validates and uploads.
+   - **CLI Theme Management**:
+     ```bash
+     qwiki-builder theme list
+     qwiki-builder theme get theme-article-modern.css -o docs/assets/themes/theme-custom.css
+     qwiki-builder theme upload docs/assets/themes/theme-custom.css
+     qwiki-builder theme apply theme-custom.css --category getting-started
+     qwiki-builder theme apply docs/assets/themes/theme-custom.css --slug system-overview
+     ```
 
 ### Step 5: Pre-Flight Validation
 Always run the validation engine before publishing or updating:
