@@ -52,31 +52,45 @@ Qwiki Builder ships with production-grade templates tailored to standard busines
 
 ### 1. Installation
 
-Install Qwiki Builder directly from [PyPI](https://pypi.org/project/qwiki-builder/):
+#### Recommended: Full Install from GitHub (CLI + Agent Skill)
 
-```bash
-pip install qwiki-builder
-```
-
-Or install from source / checkout:
+Cloning the repository and running the global installer is the **preferred installation method** because it installs both the `qwiki-builder` CLI and the **`qwiki-doc-builder` AI Agent Skill** (for Antigravity):
 
 ```bash
 # Clone the repository
 git clone https://github.com/FrancoBenedetti/qwiki-builder.git
 cd qwiki-builder
 
-# Option A: Install into your active Python environment
-pip install .
+# Global system install (links CLI to ~/.local/bin and installs the Agent Skill)
+./scripts/install-global.sh
+```
 
-# Option B: Run directly from checkout
+To update later, pull the latest changes and re-run the installer:
+
+```bash
+git pull && ./scripts/install-global.sh
+```
+
+Other source options (CLI only, without installing the global skill):
+
+```bash
+# Run directly from checkout
 ./bin/qwiki-builder --help
 
-# Option C: Global system install (links CLI to ~/.local/bin and installs Agent Skill)
-./scripts/install-global.sh
-
-# Option D: Install latest development version from GitHub
-pip install git+https://github.com/FrancoBenedetti/qwiki-builder.git
+# Or install into your active Python environment
+pip install .
 ```
+
+#### Alternative: PyPI (`pip`) — CLI & Python SDK Only
+
+If you only need the `qwiki-builder` CLI (e.g., for **CI/CD pipelines**, **Python library imports**, or if you are authoring/editing documentation **manually without the `qwiki-doc-builder` skill**), install from [PyPI](https://pypi.org/project/qwiki-builder/):
+
+```bash
+pip install qwiki-builder
+```
+
+> [!NOTE]
+> The PyPI package installs the CLI (`qwiki-builder` / `qwikibuild`), the `qwikibuilder` Python library, and template presets—it does **not** include or install the `qwiki-doc-builder` Agent Skill. To use the skill, install from GitHub using `./scripts/install-global.sh` above.
 
 ### 2. Scaffold a New Manual Project
 
@@ -318,7 +332,7 @@ print(f"Successfully published {result['synced']}/{result['total']} chapters.")
 Qwiki Builder is designed to be paired with AI Agents (Antigravity, Claude, Cursor, Copilot, Gemini CLI).
 
 - Read [`AGENTS.md`](AGENTS.md) for full agent operating instructions.
-- An Antigravity / Agent Skill definition is available at [`skills/qwiki-doc-builder/SKILL.md`](skills/qwiki-doc-builder/SKILL.md).
+- An Antigravity / Agent Skill definition is available in the GitHub repository at [`skills/qwiki-doc-builder/SKILL.md`](skills/qwiki-doc-builder/SKILL.md) and is installed automatically by `./scripts/install-global.sh` (not included in the PyPI `pip` package).
 
 Agents can autonomously:
 1. Interview users or ingest raw specifications, PRDs, and codebase docs.
@@ -355,7 +369,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Qwiki Builder
-        run: pip install git+https://github.com/FrancoBenedetti/qwiki-builder.git
+        run: pip install qwiki-builder
 
       - name: Validate Documentation
         run: qwiki-builder validate
