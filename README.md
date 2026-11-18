@@ -2,6 +2,7 @@
 
 > **Generalised CLI, Python Engine, and AI Agent Workflow for Automated Creation and Remote Deployment of Online Documentation Suites to [Standalone Qwiki](https://github.com/qwiki-wiki/standalone-qwiki).**
 
+[![PyPI version](https://img.shields.io/pypi/v/qwiki-builder.svg)](https://pypi.org/project/qwiki-builder/)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Zero External Dependencies](https://img.shields.io/badge/dependencies-0%20external-brightgreen.svg)]()
@@ -51,7 +52,13 @@ Qwiki Builder ships with production-grade templates tailored to standard busines
 
 ### 1. Installation
 
-You can install Qwiki Builder via `pip`, run it directly from checkout, or install it system-wide:
+Install Qwiki Builder directly from [PyPI](https://pypi.org/project/qwiki-builder/):
+
+```bash
+pip install qwiki-builder
+```
+
+Or install from source / checkout:
 
 ```bash
 # Clone the repository
@@ -67,7 +74,7 @@ pip install .
 # Option C: Global system install (links CLI to ~/.local/bin and installs Agent Skill)
 ./scripts/install-global.sh
 
-# Option D: Install directly from GitHub
+# Option D: Install latest development version from GitHub
 pip install git+https://github.com/FrancoBenedetti/qwiki-builder.git
 ```
 
