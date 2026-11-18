@@ -65,11 +65,14 @@ cd qwiki-builder
 ./scripts/install-global.sh
 ```
 
-To update later, pull the latest changes and re-run the installer:
+To update later, pull the latest changes and re-run the installer (the CLI updates automatically via symlink, while re-running the script refreshes the copied skill):
 
 ```bash
 git pull && ./scripts/install-global.sh
 ```
+
+> [!TIP]
+> **OS Notes:** `./scripts/install-global.sh` works natively on **Linux**, **macOS** (ensure `~/.local/bin` is in your `PATH`), and **WSL**. On **native Windows (PowerShell/CMD)**, use `pip install -e .` from the cloned repo and copy `skills\qwiki-doc-builder\` into `%USERPROFILE%\.gemini\antigravity\builtin\skills\qwiki-doc-builder\`.
 
 Other source options (CLI only, without installing the global skill):
 
