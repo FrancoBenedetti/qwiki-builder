@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Antigravity & Qwiki Community"}
+    {name = "Franco Benedetti", email = "franco@growthhq.net"}
 ]
 keywords = [
     "qwiki",
