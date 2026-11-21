@@ -88,7 +88,8 @@ class DocumentItem:
     title: str
     status: str = "published"
     description: str = ""
-    doc_type: str = "markdown"  # 'markdown' or 'html'
+    doc_type: str = "markdown"  # 'markdown', 'html', or 'form'
+    doc_id: Optional[str] = None
     share_key: Optional[str] = None
     public_shareable: bool = True
     order: int = 0
@@ -97,14 +98,27 @@ class DocumentItem:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> DocumentItem:
         raw_theme = data.get("theme")
+        raw_doc_id = data.get("doc_id") or data.get("docId")
+        file_str = str(data.get("file", "")).strip()
+        raw_type = data.get("type", data.get("doc_type"))
+        if raw_type:
+            doc_type = str(raw_type).strip().lower()
+        elif file_str.lower().endswith(".form.json"):
+            doc_type = "form"
+        elif file_str.lower().endswith((".html", ".htm")):
+            doc_type = "html"
+        else:
+            doc_type = "markdown"
+
         return cls(
-            file=str(data.get("file", "")).strip(),
+            file=file_str,
             category=str(data.get("category", "")).strip(),
             slug=str(data.get("slug", "")).strip(),
             title=str(data.get("title", "")).strip(),
             status=str(data.get("status", "published")).strip().lower(),
             description=str(data.get("description", "")).strip(),
-            doc_type=str(data.get("type", data.get("doc_type", "markdown"))).strip().lower(),
+            doc_type=doc_type,
+            doc_id=str(raw_doc_id).strip() if raw_doc_id else None,
             share_key=data.get("share_key") or data.get("shareKey"),
             public_shareable=bool(data.get("public_shareable", data.get("publicShareable", True))),
             order=int(data.get("order", 0)),
@@ -120,6 +134,8 @@ class DocumentItem:
             "type": self.doc_type,
             "status": self.status,
         }
+        if self.doc_id:
+            d["doc_id"] = self.doc_id
         if self.description:
             d["description"] = self.description
         if self.share_key:
@@ -277,7 +293,11 @@ class QwikiProjectManifest:
         cat_map: Dict[str, CategoryItem] = {c.id: c for c in self.categories}
         discovered_docs: List[DocumentItem] = []
 
-        all_files = sorted(list(docs_path.rglob("*.md")) + list(docs_path.rglob("*.html")))
+        all_files = sorted(
+            list(docs_path.rglob("*.md"))
+            + list(docs_path.rglob("*.html"))
+            + list(docs_path.rglob("*.form.json"))
+        )
 
         for fpath in all_files:
             # Skip templates or hidden files
@@ -302,16 +322,27 @@ class QwikiProjectManifest:
                 cat_map[cat_id] = new_cat
 
             # Title & Slug
+            name_lower = fpath.name.lower()
+            is_form = name_lower.endswith(".form.json")
             is_html = fpath.suffix.lower() in (".html", ".htm")
-            doc_type = "html" if is_html else "markdown"
-            default_title = fpath.stem.replace("-", " ").replace("_", " ").title()
+            doc_type = "form" if is_form else ("html" if is_html else "markdown")
+            raw_stem = fpath.name[:-len(".form.json")] if is_form else fpath.stem
+            default_title = raw_stem.replace("-", " ").replace("_", " ").title()
+            description = ""
 
-            if is_html:
+            if is_form:
+                try:
+                    schema_data = json.loads(content)
+                    title = str(schema_data.get("title") or default_title).strip()
+                    description = str(schema_data.get("description") or "").strip()
+                except Exception:
+                    title = default_title
+            elif is_html:
                 title = extract_title_from_html(content, default_title)
             else:
                 title = extract_title_from_markdown(content, default_title)
 
-            clean_slug = slugify(fpath.stem)
+            clean_slug = slugify(raw_stem)
             if not clean_slug:
                 clean_slug = f"doc-{slugify(title)}"
 
@@ -321,6 +352,7 @@ class QwikiProjectManifest:
                 slug=clean_slug,
                 title=title,
                 status=self.default_status,
+                description=description,
                 doc_type=doc_type,
                 public_shareable=self.public_shareable,
             )

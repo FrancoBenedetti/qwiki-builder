@@ -5,10 +5,11 @@ Verifies file integrity, category references, slugs, assets, and markdown syntax
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from .manifest import QwikiProjectManifest
 
@@ -51,6 +52,7 @@ class ProjectValidator:
         stats = {
             "categories": len(self.manifest.categories),
             "documents": len(self.manifest.documents),
+            "forms": 0,
             "images": 0,
             "videos": 0,
             "word_count": 0,
@@ -144,6 +146,12 @@ class ProjectValidator:
             # Content checks
             try:
                 content = doc_file.read_text(encoding="utf-8")
+                is_form = doc.doc_type == "form" or doc.file.lower().endswith(".form.json")
+                if is_form:
+                    stats["forms"] += 1
+                    self._validate_form_schema(content, doc.file, issues)
+                    continue
+
                 stats["word_count"] += len(content.split())
                 if len(content.strip()) == 0:
                     issues.append(ValidationIssue("WARNING", "Documents", "Document file is empty", file=doc.file))
@@ -268,3 +276,122 @@ class ProjectValidator:
                     file=file_hint,
                 )
             )
+
+    def _validate_form_schema(self, content: str, file_name: str, issues: List[ValidationIssue]) -> None:
+        """Validates a Standalone Qwiki JSON form schema (.form.json)."""
+        valid_field_types = {
+            "text",
+            "email",
+            "textarea",
+            "select",
+            "radio",
+            "checkbox",
+            "number",
+            "date",
+            "tel",
+            "url",
+        }
+        try:
+            schema: Any = json.loads(content)
+        except json.JSONDecodeError as e:
+            issues.append(
+                ValidationIssue(
+                    "ERROR",
+                    "Forms",
+                    f"Invalid JSON in form schema: {e}",
+                    file=file_name,
+                )
+            )
+            return
+
+        if not isinstance(schema, dict):
+            issues.append(
+                ValidationIssue(
+                    "ERROR",
+                    "Forms",
+                    "Form schema root must be a JSON object",
+                    file=file_name,
+                )
+            )
+            return
+
+        fields = schema.get("fields")
+        if not isinstance(fields, list) or len(fields) == 0:
+            issues.append(
+                ValidationIssue(
+                    "ERROR",
+                    "Forms",
+                    "Form schema must contain a non-empty 'fields' array",
+                    file=file_name,
+                )
+            )
+            return
+
+        seen_field_ids: Set[str] = set()
+        for idx, fld in enumerate(fields, 1):
+            if not isinstance(fld, dict):
+                issues.append(
+                    ValidationIssue(
+                        "ERROR",
+                        "Forms",
+                        f"Field #{idx} must be a JSON object",
+                        file=file_name,
+                    )
+                )
+                continue
+            fid = str(fld.get("id", "")).strip()
+            flabel = str(fld.get("label", "")).strip()
+            ftype = str(fld.get("type", "text")).strip().lower()
+
+            if not fid:
+                issues.append(
+                    ValidationIssue(
+                        "ERROR",
+                        "Forms",
+                        f"Field #{idx} is missing required 'id'",
+                        file=file_name,
+                    )
+                )
+            elif fid in seen_field_ids:
+                issues.append(
+                    ValidationIssue(
+                        "ERROR",
+                        "Forms",
+                        f"Duplicate field id '{fid}' in form schema",
+                        file=file_name,
+                    )
+                )
+            else:
+                seen_field_ids.add(fid)
+
+            if not flabel:
+                issues.append(
+                    ValidationIssue(
+                        "WARNING",
+                        "Forms",
+                        f"Field '{fid or idx}' has no 'label'",
+                        file=file_name,
+                    )
+                )
+
+            if ftype not in valid_field_types:
+                issues.append(
+                    ValidationIssue(
+                        "WARNING",
+                        "Forms",
+                        f"Field '{fid or idx}' uses non-standard type '{ftype}' (standard: {', '.join(sorted(valid_field_types))})",
+                        file=file_name,
+                    )
+                )
+
+            if ftype in ("select", "radio"):
+                opts = fld.get("options")
+                if not isinstance(opts, list) or len(opts) == 0:
+                    issues.append(
+                        ValidationIssue(
+                            "ERROR",
+                            "Forms",
+                            f"Field '{fid or idx}' of type '{ftype}' requires a non-empty 'options' array",
+                            file=file_name,
+                        )
+                    )

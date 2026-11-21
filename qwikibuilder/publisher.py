@@ -136,22 +136,25 @@ class QwikiPublisher:
                 raise FileNotFoundError(f"Document file not found: {doc.file}")
 
         content = doc_file.read_text(encoding="utf-8")
+        is_form = doc.doc_type == "form" or doc.file.lower().endswith(".form.json")
 
-        # Process and upload referenced images
-        if not dry_run:
-            processed_content, _ = self.asset_manager.process_content_images(
-                content=content,
+        # Process and upload referenced images & resolve links (skip for JSON forms)
+        if not is_form:
+            if not dry_run:
+                processed_content, _ = self.asset_manager.process_content_images(
+                    content=content,
+                    doc_dir=doc_file.parent,
+                    auto_upload=True,
+                )
+            else:
+                processed_content = content
+
+            processed_content, link_rewrites = self.link_manager.process_content_links(
+                content=processed_content,
                 doc_dir=doc_file.parent,
-                auto_upload=True,
             )
         else:
             processed_content = content
-
-        # Process and resolve internal hyperlinks to include canonical '<category>/<slug>'
-        processed_content, link_rewrites = self.link_manager.process_content_links(
-            content=processed_content,
-            doc_dir=doc_file.parent,
-        )
 
         if dry_run:
             return {
@@ -165,7 +168,7 @@ class QwikiPublisher:
 
         effective_expected_sha = expected_sha256
         if not effective_expected_sha and not force:
-            effective_expected_sha = self.sync_manager.get_expected_sha256(doc.slug)
+            effective_expected_sha = self.sync_manager.get_expected_sha256(doc.slug, doc.doc_id)
 
         doc_theme, doc_theme_path = self.manifest.resolve_theme_ref(doc.theme)
         if doc_theme_path is not None:
@@ -177,10 +180,11 @@ class QwikiPublisher:
                 title=doc.title,
                 content=processed_content,
                 slug=doc.slug,
-                doc_type=doc.doc_type,
+                doc_type="form" if is_form else doc.doc_type,
                 status=doc.status,
                 description=doc.description,
                 share_key=doc.share_key,
+                doc_id=doc.doc_id,
                 public_shareable=doc.public_shareable,
                 update=update,
                 overwrite=True,
@@ -201,15 +205,27 @@ class QwikiPublisher:
                 ) from e
             raise
 
+        manifest_changed = False
+        if res.get("docId") and doc.doc_id != res["docId"]:
+            doc.doc_id = res["docId"]
+            manifest_changed = True
+        if res.get("shareKey") and not doc.share_key:
+            doc.share_key = res["shareKey"]
+            manifest_changed = True
+        if manifest_changed and self.manifest.project_root:
+            manifest_file = self.manifest.project_root / "qwiki-project.json"
+            if manifest_file.is_file():
+                self.manifest.save(manifest_file)
+
         new_sha = res.get("sha256") or sha256_text(processed_content)
         self.sync_manager.record_synced_baseline(
             slug=res.get("slug") or doc.slug,
             book_id=res.get("bookId") or doc.category,
-            doc_type=doc.doc_type,
+            doc_type="form" if is_form else doc.doc_type,
             remote_sha256=new_sha,
             content=processed_content,
             meta={
-                "docId": res.get("docId", ""),
+                "docId": res.get("docId", "") or (doc.doc_id or ""),
                 "shareKey": res.get("shareKey") or doc.share_key or "",
                 "status": res.get("status") or doc.status,
                 "title": doc.title,

@@ -122,6 +122,58 @@ class TestValidator(unittest.TestCase):
             self.assertTrue(any("missing.mp4" in m for m in warnings))
             self.assertFalse(any("1799-ui-capture.png" in m for m in warnings))
 
+    def test_form_schema_validation(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            docs = root / "docs" / "general"
+            docs.mkdir(parents=True)
+
+            valid_form = docs / "survey.form.json"
+            valid_form.write_text(
+                '{"title": "Survey", "fields": [{"id": "q1", "label": "Role", "type": "select", "options": ["Dev", "Ops"]}]}',
+                encoding="utf-8",
+            )
+
+            invalid_form = docs / "broken.form.json"
+            invalid_form.write_text(
+                '{"title": "Broken", "fields": [{"id": "q1", "label": "Choice", "type": "select", "options": []}]}',
+                encoding="utf-8",
+            )
+
+            m_valid = QwikiProjectManifest(
+                categories=[CategoryItem(id="general", title="General")],
+                documents=[
+                    DocumentItem(
+                        file="general/survey.form.json",
+                        category="general",
+                        slug="survey",
+                        title="Survey",
+                        doc_type="form",
+                    )
+                ],
+                project_root=root,
+            )
+            rep_valid = ProjectValidator(m_valid).validate()
+            self.assertTrue(rep_valid.is_valid)
+            self.assertEqual(rep_valid.stats["forms"], 1)
+
+            m_invalid = QwikiProjectManifest(
+                categories=[CategoryItem(id="general", title="General")],
+                documents=[
+                    DocumentItem(
+                        file="general/broken.form.json",
+                        category="general",
+                        slug="broken",
+                        title="Broken",
+                        doc_type="form",
+                    )
+                ],
+                project_root=root,
+            )
+            rep_invalid = ProjectValidator(m_invalid).validate()
+            self.assertFalse(rep_invalid.is_valid)
+            self.assertTrue(any("requires a non-empty 'options' array" in e.message for e in rep_invalid.errors))
+
 
 if __name__ == "__main__":
     unittest.main()

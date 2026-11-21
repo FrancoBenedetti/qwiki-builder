@@ -317,10 +317,15 @@ def cmd_publish(args: argparse.Namespace) -> int:
 
 
 def _match_manifest_doc(manifest: QwikiProjectManifest, target: str) -> Optional[DocumentItem]:
-    """Finds a DocumentItem matching slug, shareKey, relative file path, filename, or stem."""
+    """Finds a DocumentItem matching slug, doc_id, shareKey, relative file path, filename, or stem."""
     clean = target.strip()
     for d in manifest.documents:
-        if clean in (d.slug, d.file, Path(d.file).name, Path(d.file).stem) or (d.share_key and clean == d.share_key):
+        stem = d.file[:-len(".form.json")] if d.file.lower().endswith(".form.json") else Path(d.file).stem
+        if (
+            clean in (d.slug, d.file, Path(d.file).name, stem)
+            or (d.share_key and clean == d.share_key)
+            or (d.doc_id and clean == d.doc_id)
+        ):
             return d
     return None
 
@@ -370,8 +375,64 @@ def cmd_pull(args: argparse.Namespace) -> int:
     client = _get_client(manifest, args)
     sync = SyncManager(manifest, client)
 
-    targets: List[tuple] = []
+    icon_map = {
+        "created": "✨ Downloaded",
+        "updated": "⬇️ Updated local",
+        "merged": "🔀 Auto-merged",
+        "up_to_date": "✅ Up to date",
+        "conflict": "⚠️ Conflict",
+    }
+
+    has_conflicts_or_errors = False
+    discover = not getattr(args, "no_discover", False)
+    prune_deleted = getattr(args, "prune_deleted", False)
+
     if args.all or not args.target:
+        if discover:
+            try:
+                tree_res = sync.pull_tree(
+                    book_id=getattr(args, "book_id", None),
+                    discover=True,
+                    overwrite=args.overwrite,
+                    sync_meta=True if args.sync_meta or discover else False,
+                    prune_deleted=prune_deleted,
+                )
+                if tree_res["added_categories"]:
+                    print(f"📁 Discovered {len(tree_res['added_categories'])} new remote category/categories:")
+                    for cat in tree_res["added_categories"]:
+                        print(f"   • [{cat.id}] \"{cat.title}\"")
+                for res in tree_res["pulled"]:
+                    outcome = res["outcome"]
+                    print(f"{icon_map.get(outcome, outcome)}: [{res['bookId']}] {res['slug']} ➔ {res['local_path']}")
+                    print(
+                        f"   • Comments: {res['comments_count']} | Talk topics: {res['talk_topics_count']} | "
+                        f"Feedback digest: {res['feedback_md']}"
+                    )
+                    lock = res.get("lock") or {}
+                    if lock.get("locked"):
+                        print(
+                            f"   ⚠️ ACTIVE UI LOCK: Currently being edited by '{lock.get('user', 'Unknown')}' "
+                            f"(expires in {lock.get('expiresIn', 0)}s)"
+                        )
+                    if outcome == "conflict":
+                        has_conflicts_or_errors = True
+                        print(
+                            f"   ⚠️ Local edits and remote changes diverged! Remote copy saved to: {res['conflict_path']}\n"
+                            f"      Merge manually into {res['local_path']}, then run 'qwiki-builder update {res['slug']} --force' "
+                            f"(or re-pull with '--overwrite')."
+                        )
+                if tree_res["remote_deleted_docs"] and not prune_deleted:
+                    print(f"\n⚠️ {len(tree_res['remote_deleted_docs'])} local document(s) were deleted on the remote wiki:")
+                    for rdel in tree_res["remote_deleted_docs"]:
+                        print(f"   • [{rdel.category}] {rdel.slug} ({rdel.file})")
+                    print("   Run 'qwiki-builder pull --all --prune-deleted' to remove them locally, or 'qwiki-builder publish' to re-create them.")
+                elif tree_res["pruned_docs"]:
+                    print(f"\n🗑️ Pruned {len(tree_res['pruned_docs'])} remote-deleted document(s): {', '.join(tree_res['pruned_docs'])}")
+                return 1 if has_conflicts_or_errors else 0
+            except Exception as e:
+                print(f"❌ Tree pull failed: {e}")
+                return 1
+
         if not manifest.documents:
             print("ℹ️ No documents registered in manifest.")
             return 0
@@ -381,7 +442,6 @@ def cmd_pull(args: argparse.Namespace) -> int:
         slug_val = matched.slug if matched else args.target.strip()
         targets = [(slug_val, matched)]
 
-    has_conflicts_or_errors = False
     for slug_val, doc in targets:
         try:
             res = sync.pull_document(
@@ -391,13 +451,6 @@ def cmd_pull(args: argparse.Namespace) -> int:
                 sync_meta=args.sync_meta,
             )
             outcome = res["outcome"]
-            icon_map = {
-                "created": "✨ Downloaded",
-                "updated": "⬇️ Updated local",
-                "merged": "🔀 Auto-merged",
-                "up_to_date": "✅ Up to date",
-                "conflict": "⚠️ Conflict",
-            }
             print(f"{icon_map.get(outcome, outcome)}: [{res['bookId']}] {res['slug']} ➔ {res['local_path']}")
             print(
                 f"   • Comments: {res['comments_count']} | Talk topics: {res['talk_topics_count']} | "
@@ -423,6 +476,126 @@ def cmd_pull(args: argparse.Namespace) -> int:
             print(f"❌ Failed to pull '{slug_val}': {e}")
 
     return 1 if has_conflicts_or_errors else 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Compare live remote wiki tree against local manifest and .qwiki-sync baselines."""
+    manifest = _resolve_manifest(args.manifest)
+    client = _get_client(manifest, args)
+    sync = SyncManager(manifest, client)
+
+    try:
+        st = sync.compute_tree_status(book_id=getattr(args, "book_id", None))
+    except Exception as e:
+        print(f"❌ Status check failed: {e}")
+        return 1
+
+    print("=" * 80)
+    print(f"📊 SYNC STATUS: \"{manifest.name}\" <-> {client.base_url}")
+    print("=" * 80)
+
+    if st["remote_only_categories"]:
+        print(f"\n📁 New Remote Categories ({len(st['remote_only_categories'])}):")
+        for rc in st["remote_only_categories"]:
+            print(f"   + [{rc.get('id')}] \"{rc.get('title')}\"")
+
+    if st["local_only_categories"]:
+        print(f"\n📁 Local-Only Categories ({len(st['local_only_categories'])}):")
+        for lc in st["local_only_categories"]:
+            print(f"   • [{lc.id}] \"{lc.title}\" (will be created on publish)")
+
+    if st["remote_only_docs"]:
+        print(f"\n✨ New Remote Pages Not in Local Manifest ({len(st['remote_only_docs'])}):")
+        for rch in st["remote_only_docs"]:
+            print(f"   + [{rch.get('bookId')}] {rch.get('slug')} (\"{rch.get('title')}\", type: {rch.get('type')})")
+
+    if st["local_new_docs"]:
+        print(f"\n📝 New Local Pages Not Yet Published ({len(st['local_new_docs'])}):")
+        for doc in st["local_new_docs"]:
+            print(f"   + [{doc.category}] {doc.slug} ({doc.file})")
+
+    if st["modified_docs"]:
+        print(f"\n🔄 Modified / Diverged Pages ({len(st['modified_docs'])}):")
+        for item in st["modified_docs"]:
+            doc = item["doc"]
+            rch = item["remote"]
+            reasons = []
+            if not item["local_exists"]:
+                reasons.append("local file missing")
+            elif item["local_changed"] and item["remote_changed"]:
+                reasons.append("both local & remote edited")
+            elif item["remote_changed"]:
+                reasons.append("remote edited")
+            elif item["local_changed"]:
+                reasons.append("local edited")
+            elif item["local_sha256"] != item["remote_sha256"]:
+                reasons.append("content differs")
+            if item["moved_or_renamed"]:
+                reasons.append(f"moved/renamed on remote -> [{rch.get('bookId')}] {rch.get('slug')}")
+            if item["title_changed"]:
+                reasons.append(f"title: {doc.title!r} -> {rch.get('title')!r}")
+            if item["status_changed"]:
+                reasons.append(f"status: {doc.status} -> {rch.get('status')}")
+            print(f"   ~ [{doc.category}] {doc.slug} ({', '.join(reasons)})")
+
+    if st["remote_deleted_docs"]:
+        print(f"\n🗑️ Deleted on Remote Wiki ({len(st['remote_deleted_docs'])}):")
+        for doc in st["remote_deleted_docs"]:
+            print(f"   - [{doc.category}] {doc.slug} ({doc.file})")
+
+    print(f"\n✅ In Sync: {len(st['in_sync_docs'])} document(s)")
+    print("=" * 80)
+    return 0
+
+
+def cmd_sync(args: argparse.Namespace) -> int:
+    """Bidirectional synchronization: pull remote tree/changes/feedback, validate, and publish local changes."""
+    manifest = _resolve_manifest(args.manifest)
+    client = _get_client(manifest, args)
+    sync = SyncManager(manifest, client)
+
+    print("=" * 80)
+    print(f"🔄 BIDIRECTIONAL SYNC: \"{manifest.name}\" <-> {client.base_url}")
+    print("=" * 80)
+
+    try:
+        pull_res = sync.pull_tree(
+            book_id=getattr(args, "book_id", None),
+            discover=not getattr(args, "no_discover", False),
+            overwrite=False,
+            sync_meta=True,
+            prune_deleted=getattr(args, "prune_deleted", False),
+        )
+    except Exception as e:
+        print(f"❌ Pull phase failed: {e}")
+        return 1
+
+    conflicts = [r for r in pull_res["pulled"] if r["outcome"] == "conflict"]
+    for res in pull_res["pulled"]:
+        if res["outcome"] != "up_to_date":
+            print(f"  ⬇️ Pulled [{res['bookId']}] {res['slug']} ({res['outcome']})")
+
+    if conflicts:
+        print(f"\n❌ Stopping before publish: {len(conflicts)} merge conflict(s) require resolution:")
+        for c in conflicts:
+            print(f"   • [{c['bookId']}] {c['slug']}: remote saved to {c['conflict_path']}")
+        return 1
+
+    validator = ProjectValidator(manifest)
+    report = validator.validate()
+    if report.errors:
+        print(f"\n❌ Cannot publish: {len(report.errors)} validation error(s) detected:")
+        for err in report.errors:
+            print(f"   • [{err.category}] {err.message} ({err.file})")
+        return 1
+
+    publisher = QwikiPublisher(manifest, client)
+    pub_res = publisher.publish_all(
+        dry_run=getattr(args, "dry_run", False),
+        upload_assets_first=not getattr(args, "no_assets", False),
+        force=getattr(args, "force", False),
+    )
+    return 0 if pub_res.get("success") else 1
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
@@ -689,6 +862,208 @@ def cmd_theme(args: argparse.Namespace) -> int:
         return 1
 
 
+def _format_submissions_table(schema: dict, submissions: list) -> str:
+    """Formats form submission records as a readable Markdown table."""
+    if not submissions:
+        return "*No form responses recorded.*"
+
+    fields = schema.get("fields", []) if isinstance(schema, dict) else []
+    field_cols = [(f.get("id", ""), f.get("label") or f.get("id", "")) for f in fields if isinstance(f, dict) and f.get("id")]
+    if not field_cols:
+        # Infer keys from first submission data
+        sample_data = submissions[0].get("data", {}) if isinstance(submissions[0], dict) else {}
+        field_cols = [(k, k) for k in sample_data.keys()]
+
+    headers = ["ID", "Date", "User"] + [lbl for _, lbl in field_cols]
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join(["---"] * len(headers)) + " |",
+    ]
+    for sub in submissions:
+        data = sub.get("data", {}) if isinstance(sub, dict) else {}
+        row = [
+            str(sub.get("id", "")),
+            str(sub.get("created_at", "")),
+            str(sub.get("submitted_by", "guest")),
+        ]
+        for fid, _ in field_cols:
+            val = data.get(fid, "")
+            if isinstance(val, list):
+                val = ", ".join(str(v) for v in val)
+            cell = str(val).replace("\n", " ").replace("|", "\\|")
+            row.append(cell)
+        lines.append("| " + " | ".join(row) + " |")
+    return "\n".join(lines)
+
+
+def cmd_forms(args: argparse.Namespace) -> int:
+    """Automate JSON web form creation/updates and monitor/export form responses."""
+    import time
+
+    manifest, client = _get_client_optional_manifest(args)
+    action = args.forms_action
+
+    try:
+        if action == "list":
+            forms = client.list_forms(book_id=getattr(args, "book_id", None))
+            print("=" * 80)
+            print(f"📋 JSON WEB FORMS ON {client.base_url} ({len(forms)} total)")
+            print("=" * 80)
+            if not forms:
+                print("  (No forms registered on remote wiki)")
+            else:
+                for fm in forms:
+                    latest = fm.get("latestSubmissionAt") or "never"
+                    print(
+                        f"  • [{fm.get('bookId')}] {fm.get('slug')} — \"{fm.get('title')}\"\n"
+                        f"    Fields: {fm.get('fieldsCount', 0)} | Responses: {fm.get('submissionsCount', 0)} "
+                        f"(latest: {latest}) | URL: {fm.get('url', '')}"
+                    )
+            print("=" * 80)
+            return 0
+
+        if action == "push":
+            file_path = Path(args.file).resolve()
+            if not file_path.is_file():
+                print(f"❌ Error: Form schema file not found: {file_path}")
+                return 1
+            raw_content = file_path.read_text(encoding="utf-8")
+            try:
+                schema = json.loads(raw_content)
+            except Exception as e:
+                print(f"❌ Error: Invalid JSON in {file_path}: {e}")
+                return 1
+            if not isinstance(schema, dict) or not isinstance(schema.get("fields"), list) or not schema["fields"]:
+                print("❌ Error: Form schema must be a JSON object with a non-empty 'fields' array.")
+                return 1
+
+            matched_doc = _match_manifest_doc(manifest, args.file) if manifest else None
+            cat_id = args.category or (matched_doc.category if matched_doc else None)
+            if not cat_id:
+                print("❌ Error: Specify --category <bookId> (or declare the form in qwiki-project.json).")
+                return 1
+            raw_stem = file_path.name[:-len(".form.json")] if file_path.name.lower().endswith(".form.json") else file_path.stem
+            slug = args.slug or (matched_doc.slug if matched_doc else raw_stem)
+            title = args.title or schema.get("title") or (matched_doc.title if matched_doc else slug.replace("-", " ").title())
+            desc = schema.get("description") or (matched_doc.description if matched_doc else "")
+
+            res = client.publish_document(
+                book_id=cat_id,
+                title=title,
+                content=raw_content,
+                slug=slug,
+                doc_type="form",
+                description=desc,
+                doc_id=matched_doc.doc_id if matched_doc else None,
+                share_key=matched_doc.share_key if matched_doc else None,
+                update=True,
+                overwrite=True,
+                force=getattr(args, "force", False),
+            )
+            status_tag = "🔄 Updated form" if res.get("updated") else "✨ Created form"
+            print(f"✅ {status_tag}: [{res.get('bookId')}] {res.get('slug')} ➔ {res.get('url')}")
+            return 0
+
+        if action == "responses":
+            target = args.target.strip()
+            matched_doc = _match_manifest_doc(manifest, target) if manifest else None
+            slug = matched_doc.slug if matched_doc else target
+            fmt = args.format.lower()
+            api_fmt = "csv" if fmt == "csv" else "json"
+
+            res = client.get_form_submissions(
+                slug=slug,
+                doc_id=matched_doc.doc_id if matched_doc else None,
+                since=args.since,
+                since_id=args.since_id,
+                limit=args.limit,
+                output_format=api_fmt,
+            )
+
+            if fmt == "csv":
+                out_text = res.get("csv", "")
+            elif fmt == "json":
+                out_text = json.dumps(res.get("submissions", []), indent=2, ensure_ascii=False)
+            else:
+                out_text = _format_submissions_table(res.get("schema", {}), res.get("submissions", []))
+
+            if args.out:
+                out_path = Path(args.out).resolve()
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(out_text, encoding="utf-8")
+                print(f"✅ Exported {res.get('returned', 0)} response(s) for '{slug}' to {out_path}")
+            else:
+                print(out_text)
+            return 0
+
+        if action == "watch":
+            target = args.target.strip()
+            matched_doc = _match_manifest_doc(manifest, target) if manifest else None
+            slug = matched_doc.slug if matched_doc else target
+            interval = max(2, int(args.interval))
+            max_polls = int(args.max_polls) if getattr(args, "max_polls", None) else 0
+
+            last_seen_id: Optional[str] = args.since_id
+            if not last_seen_id:
+                init_res = client.get_form_submissions(slug=slug, doc_id=matched_doc.doc_id if matched_doc else None)
+                subs = init_res.get("submissions", [])
+                if subs:
+                    # submissions are returned newest-first
+                    last_seen_id = subs[0].get("id")
+                print(f"👀 Watching form '{slug}' on {client.base_url} (total existing: {init_res.get('total', 0)}, interval: {interval}s)...")
+
+            polls = 0
+            try:
+                while True:
+                    polls += 1
+                    res = client.get_form_submissions(
+                        slug=slug,
+                        doc_id=matched_doc.doc_id if matched_doc else None,
+                        since_id=last_seen_id,
+                    )
+                    new_subs = list(reversed(res.get("submissions", [])))
+                    for sub in new_subs:
+                        last_seen_id = sub.get("id") or last_seen_id
+                        print(f"\n🔔 New response [{sub.get('id')}] at {sub.get('created_at')} by {sub.get('submitted_by', 'guest')}:")
+                        for k, v in (sub.get("data") or {}).items():
+                            print(f"   • {k}: {v}")
+                    if max_polls > 0 and polls >= max_polls:
+                        break
+                    time.sleep(interval)
+            except KeyboardInterrupt:
+                print("\n⏹️ Stopped watching form responses.")
+            return 0
+
+        if action == "delete-response":
+            target = args.target.strip()
+            matched_doc = _match_manifest_doc(manifest, target) if manifest else None
+            slug = matched_doc.slug if matched_doc else target
+            res = client.delete_form_submission(
+                submission_id=args.id.strip(),
+                slug=slug,
+                doc_id=matched_doc.doc_id if matched_doc else None,
+            )
+            print(f"✅ Deleted submission '{args.id}' from '{slug}' ({res.get('remaining', 0)} remaining).")
+            return 0
+
+        if action == "clear-responses":
+            target = args.target.strip()
+            matched_doc = _match_manifest_doc(manifest, target) if manifest else None
+            slug = matched_doc.slug if matched_doc else target
+            client.clear_form_submissions(
+                slug=slug,
+                doc_id=matched_doc.doc_id if matched_doc else None,
+            )
+            print(f"✅ Cleared all submissions for form '{slug}'.")
+            return 0
+
+        print(f"❌ Unknown forms action: {action}")
+        return 1
+    except Exception as e:
+        print(f"❌ Forms command failed: {e}")
+        return 1
+
+
 # ==============================================================================
 # Argument Parsing Entry Point
 # ==============================================================================
@@ -779,10 +1154,36 @@ def build_parser() -> argparse.ArgumentParser:
     p_pul.add_argument("-p", "--profile", help="Target named profile")
     p_pul.add_argument("--url", help="Override remote Qwiki URL")
     p_pul.add_argument("--key", help="Override remote API key")
-    p_pul.add_argument("--all", action="store_true", help="Pull all documents declared in qwiki-project.json")
+    p_pul.add_argument("--book-id", help="Filter tree pull by category ID")
+    p_pul.add_argument("--all", action="store_true", help="Pull all documents and discover new remote categories/pages")
+    p_pul.add_argument("--no-discover", action="store_true", help="Only pull chapters already declared in local qwiki-project.json")
+    p_pul.add_argument("--prune-deleted", action="store_true", help="Remove local files and manifest entries for chapters deleted on remote wiki")
     p_pul.add_argument("--overwrite", action="store_true", help="Overwrite local edits with remote content")
     p_pul.add_argument("--sync-meta", action="store_true", help="Sync title, status, and description from remote into qwiki-project.json")
     p_pul.set_defaults(func=cmd_pull)
+
+    # status
+    p_sts = subparsers.add_parser("status", help="Compare live remote wiki tree against local manifest and baselines")
+    p_sts.add_argument("manifest", nargs="?", help="Path to qwiki-project.json or project directory")
+    p_sts.add_argument("-p", "--profile", help="Target named profile")
+    p_sts.add_argument("--url", help="Override remote Qwiki URL")
+    p_sts.add_argument("--key", help="Override remote API key")
+    p_sts.add_argument("--book-id", help="Filter status check by category ID")
+    p_sts.set_defaults(func=cmd_status)
+
+    # sync
+    p_syn = subparsers.add_parser("sync", help="Bidirectional sync: pull remote tree/changes/feedback, validate, and publish local changes")
+    p_syn.add_argument("manifest", nargs="?", help="Path to qwiki-project.json or project directory")
+    p_syn.add_argument("-p", "--profile", help="Target named profile")
+    p_syn.add_argument("--url", help="Override remote Qwiki URL")
+    p_syn.add_argument("--key", help="Override remote API key")
+    p_syn.add_argument("--book-id", help="Filter by category ID")
+    p_syn.add_argument("--no-discover", action="store_true", help="Do not pull remote-only pages into local project")
+    p_syn.add_argument("--prune-deleted", action="store_true", help="Prune local pages that were deleted on the remote wiki")
+    p_syn.add_argument("--dry-run", action="store_true", help="Pull remote changes and preview publish phase without pushing")
+    p_syn.add_argument("--no-assets", action="store_true", help="Skip pre-uploading assets during publish phase")
+    p_syn.add_argument("--force", action="store_true", help="Bypass optimistic SHA-256 and active UI lock guards during publish")
+    p_syn.set_defaults(func=cmd_sync)
 
     # diff
     p_dif = subparsers.add_parser("diff", help="Diff local document against remote Qwiki state, lock, and discussions")
@@ -871,6 +1272,53 @@ def build_parser() -> argparse.ArgumentParser:
     p_thm_app.add_argument("--slug", help="Apply to a specific page/chapter slug")
     _add_conn_args(p_thm_app)
     p_thm_app.set_defaults(func=cmd_theme)
+
+    # forms
+    p_frm = subparsers.add_parser("forms", help="Automate JSON web form creation/updates and monitor/export form responses")
+    frm_sub = p_frm.add_subparsers(dest="forms_action", required=True, help="Form subcommands")
+
+    p_frm_list = frm_sub.add_parser("list", help="List all JSON web forms on remote Qwiki with response counts")
+    p_frm_list.add_argument("--book-id", help="Filter by category ID")
+    _add_conn_args(p_frm_list)
+    p_frm_list.set_defaults(func=cmd_forms)
+
+    p_frm_push = frm_sub.add_parser("push", help="Create or update a JSON web form (.form.json) on remote Qwiki")
+    p_frm_push.add_argument("file", help="Path to local .form.json schema file")
+    p_frm_push.add_argument("-c", "--category", help="Target category ID (optional if declared in qwiki-project.json)")
+    p_frm_push.add_argument("-s", "--slug", help="Override form slug")
+    p_frm_push.add_argument("-t", "--title", help="Override form title")
+    p_frm_push.add_argument("--force", action="store_true", help="Bypass active lock guard")
+    _add_conn_args(p_frm_push)
+    p_frm_push.set_defaults(func=cmd_forms)
+
+    p_frm_resp = frm_sub.add_parser("responses", help="Fetch or export form responses (table, json, or csv)")
+    p_frm_resp.add_argument("target", help="Form slug, file path, or docId")
+    p_frm_resp.add_argument("-f", "--format", choices=["table", "json", "csv"], default="table", help="Output format")
+    p_frm_resp.add_argument("--since", help="Filter responses submitted on/after datetime (e.g. '2026-11-20 00:00:00')")
+    p_frm_resp.add_argument("--since-id", help="Return only responses submitted after a specific submission ID")
+    p_frm_resp.add_argument("-n", "--limit", type=int, help="Maximum number of recent responses to return")
+    p_frm_resp.add_argument("-o", "--out", help="Write output to file path instead of stdout")
+    _add_conn_args(p_frm_resp)
+    p_frm_resp.set_defaults(func=cmd_forms)
+
+    p_frm_watch = frm_sub.add_parser("watch", help="Monitor a form in real time for new responses")
+    p_frm_watch.add_argument("target", help="Form slug, file path, or docId")
+    p_frm_watch.add_argument("-i", "--interval", type=int, default=15, help="Polling interval in seconds (default: 15)")
+    p_frm_watch.add_argument("--since-id", help="Resume watching after a specific submission ID")
+    p_frm_watch.add_argument("--max-polls", type=int, help="Stop automatically after N polls (useful for scripts/tests)")
+    _add_conn_args(p_frm_watch)
+    p_frm_watch.set_defaults(func=cmd_forms)
+
+    p_frm_del = frm_sub.add_parser("delete-response", help="Delete a single form submission by ID")
+    p_frm_del.add_argument("target", help="Form slug, file path, or docId")
+    p_frm_del.add_argument("--id", required=True, help="Submission ID to delete (e.g. sub_...)")
+    _add_conn_args(p_frm_del)
+    p_frm_del.set_defaults(func=cmd_forms)
+
+    p_frm_clr = frm_sub.add_parser("clear-responses", help="Clear all responses for a form")
+    p_frm_clr.add_argument("target", help="Form slug, file path, or docId")
+    _add_conn_args(p_frm_clr)
+    p_frm_clr.set_defaults(func=cmd_forms)
 
     return parser
 

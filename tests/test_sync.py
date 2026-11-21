@@ -183,6 +183,107 @@ class TestSync(unittest.TestCase):
                 publisher.publish_document_item(doc, update=True)
             self.assertIn("qwiki-builder pull intro", str(ctx.exception))
 
+    def test_pull_tree_discovers_new_remote_categories_and_pages_and_handles_moves(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            v1 = "# Intro\n\nOriginal.\n"
+            manifest, doc, doc_path = self._make_project(root, content=v1)
+            doc.doc_id = "doc_intro_1"
+            manifest.save(root / "qwiki-project.json")
+
+            client = MagicMock()
+            sync = SyncManager(manifest, client)
+            sync.record_synced_baseline("intro", "general", "markdown", sha256_text(v1), v1, meta={"docId": "doc_intro_1"})
+
+            form_schema = json.dumps({
+                "title": "Feedback Survey",
+                "fields": [{"id": "name", "label": "Name", "type": "text"}],
+            })
+            # Remote state:
+            # 1. 'intro' (doc_intro_1) was moved to new category 'operations' and renamed to 'intro-v2'
+            # 2. A brand-new form 'feedback-survey' (doc_form_2) was added on live wiki under 'operations'
+            client.get_tree.return_value = {
+                "success": True,
+                "categories": [
+                    {"id": "general", "title": "General"},
+                    {"id": "operations", "title": "Field Operations", "description": "Live ops category"},
+                ],
+                "chapters": [
+                    {
+                        "docId": "doc_intro_1",
+                        "bookId": "operations",
+                        "slug": "intro-v2",
+                        "title": "Intro Moved",
+                        "type": "markdown",
+                        "status": "published",
+                        "sha256": sha256_text(v1),
+                    },
+                    {
+                        "docId": "doc_form_2",
+                        "bookId": "operations",
+                        "slug": "feedback-survey",
+                        "title": "Feedback Survey",
+                        "type": "form",
+                        "status": "published",
+                        "sha256": sha256_text(form_schema),
+                    },
+                ],
+            }
+
+            def mock_get_doc(slug=None, doc_id=None, **kwargs):
+                if doc_id == "doc_intro_1" or slug == "intro-v2":
+                    return {
+                        "docId": "doc_intro_1",
+                        "bookId": "operations",
+                        "slug": "intro-v2",
+                        "title": "Intro Moved",
+                        "type": "markdown",
+                        "status": "published",
+                        "sha256": sha256_text(v1),
+                        "content": v1,
+                        "commentsCount": 0,
+                        "talkTopicsCount": 0,
+                    }
+                return {
+                    "docId": "doc_form_2",
+                    "bookId": "operations",
+                    "slug": "feedback-survey",
+                    "title": "Feedback Survey",
+                    "type": "form",
+                    "status": "published",
+                    "sha256": sha256_text(form_schema),
+                    "content": form_schema,
+                    "commentsCount": 0,
+                    "talkTopicsCount": 0,
+                }
+
+            client.get_document.side_effect = mock_get_doc
+
+            st = sync.compute_tree_status()
+            self.assertEqual(len(st["remote_only_categories"]), 1)
+            self.assertEqual(st["remote_only_categories"][0]["id"], "operations")
+            self.assertEqual(len(st["remote_only_docs"]), 1)
+            self.assertEqual(st["remote_only_docs"][0]["slug"], "feedback-survey")
+            self.assertEqual(len(st["modified_docs"]), 1)
+            self.assertTrue(st["modified_docs"][0]["moved_or_renamed"])
+
+            tree_res = sync.pull_tree(discover=True, sync_meta=True)
+            self.assertEqual(len(tree_res["added_categories"]), 1)
+            self.assertEqual(len(tree_res["pulled"]), 2)
+
+            reloaded = QwikiProjectManifest.load(root / "qwiki-project.json")
+            cat_ids = [c.id for c in reloaded.categories]
+            self.assertIn("operations", cat_ids)
+            slugs = {d.slug: d for d in reloaded.documents}
+            self.assertIn("intro-v2", slugs)
+            self.assertEqual(slugs["intro-v2"].category, "operations")
+            self.assertTrue((root / "docs" / "operations" / "intro-v2.md").is_file())
+            self.assertFalse(doc_path.is_file())
+
+            self.assertIn("feedback-survey", slugs)
+            self.assertEqual(slugs["feedback-survey"].doc_type, "form")
+            self.assertTrue((root / "docs" / "operations" / "feedback-survey.form.json").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

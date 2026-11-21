@@ -68,17 +68,25 @@ qwiki-builder init sop-library --template sop --name "Standard Operating Procedu
 ### Step 2b: Pull Live State Before Amending Published Documents (Mandatory for Updates)
 Whenever a target chapter is **already published** on Standalone Qwiki (verify first with `qwiki-builder list` or `qwiki-builder diff <file-or-slug>`), **never** edit and re-upload solely from local files. Users may have edited the document directly in the Qwiki UI, uploaded new media into `uploads/`, modified chapter status/metadata, or added feedback in **Comments** (`tool-comments`) and the **Talk Page** (`tool-talk`).
 
-1. **Pull Live Document, Comments & Talk Page**:
+1. **Pull Live Document, Comments & Talk Page (or Full Tree Discovery)**:
    ```bash
-   # Inspect differences, metadata drift, active lock, and discussion counts first (read-only)
+   # Compare full live remote wiki tree vs local manifest (new categories, new pages, moves, deletions, modifications)
+   qwiki-builder status
+
+   # Inspect differences, metadata drift, active lock, and discussion counts for a single chapter (read-only)
    qwiki-builder diff <file-or-slug>
 
    # Pull live content + sidecar feedback + SHA-256 baseline (add --sync-meta to align title/status/description)
    qwiki-builder pull <file-or-slug> --sync-meta
-   # Or pull the entire suite:
-   qwiki-builder pull --all --sync-meta
+
+   # Or pull the entire suite AND automatically discover new categories/pages/forms added on the live wiki:
+   qwiki-builder pull --all
+
+   # Or run a full bidirectional sync (pull tree + 3-way merge + validate + publish local changes):
+   qwiki-builder sync
    ```
-   - `qwiki-builder pull` calls `api/publish.php?action=get_doc`, which retrieves **verbatim Markdown or HTML** across all lifecycle statuses (`published`, `review`, `draft`, `archived`), active `LockManager` editor lock state, `sha256`, `comments`, and `talk`.
+   - `qwiki-builder pull --all` calls `api/publish.php?action=get_tree` and `action=get_doc`, which retrieves **verbatim Markdown, HTML, and `.form.json` schemas** across all lifecycle statuses (`published`, `review`, `draft`, `archived`), active `LockManager` editor lock state, `docId`, `sha256`, `comments`, and `talk`.
+   - It matches chapters by immutable `docId` (`doc_id` in `qwiki-project.json`), so if a live user renamed a slug or moved a page into another category, `qwiki-builder pull` relocates the local file and updates `qwiki-project.json` without duplicating the page.
    - It saves the remote `sha256` and 3-way merge base under `.qwiki-sync/state.json` and `.qwiki-sync/base/`, and writes live discussions to `.qwiki-sync/feedback/<bookId>__<slug>.feedback.md` (and `.json`) so internal comments and Talk threads are **never** concatenated into your document file.
    - **Legacy Server Fallback**: If the remote Standalone Qwiki is an older version without `action=get_doc`, `pull` automatically falls back to `api/llm.php?mode=doc&slug=<slug>&include_comments=1&include_talk=1` (JSON mode—note that `api/llm.php` strips HTML tags on `type=html`, hides `draft`/`archived` chapters, and rewrites relative URLs to absolute URLs, so export raw source from the Qwiki UI for HTML/drafts on older servers).
 
@@ -174,6 +182,31 @@ Follow these strict writing conventions for all generated Markdown files:
      qwiki-builder theme upload docs/assets/themes/theme-custom.css
      qwiki-builder theme apply theme-custom.css --category getting-started
      qwiki-builder theme apply docs/assets/themes/theme-custom.css --slug system-overview
+     ```
+8. **JSON Web Forms (`.form.json`) & Response Monitoring**:
+   - **Authoring & Schema Format**:
+     - Store form definitions locally as `docs/<category>/<slug>.form.json` with `"type": "form"` in `qwiki-project.json`.
+     - Supported field types: `text`, `email`, `textarea`, `select`, `radio`, `checkbox`, `number`, `date`, `tel`, `url` (`select` and `radio` require a non-empty `"options": [...]` array).
+     - Optional real-time push notifications inside `.form.json`: set `"webhookUrl": "https://..."` (receives instant HTTP POST JSON payload on submission) or `"notificationEmail": "ops@example.com"`.
+   - **CLI Form Automation & Response Monitoring**:
+     ```bash
+     # List all forms on remote wiki with field counts, submission counts, and latest timestamp
+     qwiki-builder forms list
+
+     # Create or replace a form schema in-place (existing .submissions.json responses are preserved!)
+     qwiki-builder forms push docs/general/feedback-survey.form.json --category general
+
+     # Fetch or export responses as a Markdown table, JSON, or Excel-ready CSV
+     qwiki-builder forms responses feedback-survey
+     qwiki-builder forms responses feedback-survey --format csv -o responses.csv
+     qwiki-builder forms responses feedback-survey --since "2026-11-20 00:00:00" --format json
+
+     # Live-monitor a form in the terminal for new incoming submissions
+     qwiki-builder forms watch feedback-survey --interval 15
+
+     # Delete a single response or clear all responses
+     qwiki-builder forms delete-response feedback-survey --id sub_a1b2c3d4e5f6
+     qwiki-builder forms clear-responses feedback-survey
      ```
 
 ### Step 5: Pre-Flight Validation

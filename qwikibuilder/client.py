@@ -213,10 +213,38 @@ class QwikiClient:
             raise QwikiClientError(res.get("error", "Failed to list chapters"))
         return res.get("chapters", [])
 
+    def get_tree(self, book_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Retrieves the full remote navigation tree (recursive categories + chapters with docId and sha256).
+        Falls back to list_categories + list_chapters if the server runs an older version without get_tree.
+        """
+        payload: Dict[str, Any] = {"action": "get_tree"}
+        if book_id:
+            payload["bookId"] = book_id
+        try:
+            res = self.post(payload)
+            if not res.get("success"):
+                raise QwikiClientError(res.get("error", "Failed to retrieve remote tree"))
+            if "categories" not in res:
+                res["categories"] = self.list_categories()
+            return res
+        except QwikiClientError as e:
+            if e.status_code == 400 and "bookId, title, and content are required" in str(e):
+                cats = self.list_categories()
+                chaps = self.list_chapters(book_id=book_id)
+                return {
+                    "success": True,
+                    "categories": cats,
+                    "chapters": chaps,
+                    "total": len(chaps),
+                }
+            raise
+
     def get_document(
         self,
         slug: Optional[str] = None,
         share_key: Optional[str] = None,
+        doc_id: Optional[str] = None,
         book_id: Optional[str] = None,
         file_path: Optional[str] = None,
         include_comments: bool = True,
@@ -236,6 +264,8 @@ class QwikiClient:
             payload["slug"] = slug
         if share_key:
             payload["shareKey"] = share_key
+        if doc_id:
+            payload["docId"] = doc_id
         if book_id:
             payload["bookId"] = book_id
         if file_path:
@@ -244,7 +274,7 @@ class QwikiClient:
         try:
             res = self.post(payload)
             if not res.get("success") or "document" not in res:
-                raise QwikiClientError(res.get("error", f"Failed to pull document '{slug or share_key or file_path}'"))
+                raise QwikiClientError(res.get("error", f"Failed to pull document '{slug or share_key or doc_id or file_path}'"))
             return res["document"]
         except QwikiClientError as e:
             # Older Standalone Qwiki servers fall through unknown actions to publish_doc validation
@@ -326,6 +356,7 @@ class QwikiClient:
         status: str = "published",
         description: str = "",
         share_key: Optional[str] = None,
+        doc_id: Optional[str] = None,
         public_shareable: bool = True,
         update: bool = True,
         overwrite: bool = True,
@@ -336,7 +367,7 @@ class QwikiClient:
         force: bool = False,
         theme: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Publishes or updates a document (markdown or html) on Qwiki."""
+        """Publishes or updates a document (markdown, html, or form) on Qwiki."""
         payload: Dict[str, Any] = {
             "bookId": book_id,
             "title": title,
@@ -350,6 +381,8 @@ class QwikiClient:
             payload["description"] = description
         if share_key:
             payload["shareKey"] = share_key
+        if doc_id:
+            payload["docId"] = doc_id
         if not public_shareable:
             payload["publicShareable"] = "0"
         if update:
@@ -444,6 +477,109 @@ class QwikiClient:
         if not res.get("success"):
             raise QwikiClientError(res.get("error", f"Failed to set status on shareKey '{share_key}'"))
         return res
+
+    def list_forms(self, book_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Lists all JSON web forms on the remote wiki along with submission counts."""
+        payload: Dict[str, Any] = {"action": "list_forms"}
+        if book_id:
+            payload["bookId"] = book_id
+        res = self.post(payload)
+        if not res.get("success"):
+            raise QwikiClientError(res.get("error", "Failed to list forms"))
+        return res.get("forms", [])
+
+    def get_form_submissions(
+        self,
+        slug: Optional[str] = None,
+        doc_id: Optional[str] = None,
+        share_key: Optional[str] = None,
+        book_id: Optional[str] = None,
+        file_path: Optional[str] = None,
+        since: Optional[str] = None,
+        since_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        output_format: str = "json",
+    ) -> Dict[str, Any]:
+        """Retrieves submissions (and form schema) or CSV export for a remote JSON web form."""
+        payload: Dict[str, Any] = {
+            "action": "get_form_submissions",
+            "format": output_format,
+        }
+        if slug:
+            payload["slug"] = slug
+        if doc_id:
+            payload["docId"] = doc_id
+        if share_key:
+            payload["shareKey"] = share_key
+        if book_id:
+            payload["bookId"] = book_id
+        if file_path:
+            payload["file"] = file_path
+        if since:
+            payload["since"] = since
+        if since_id:
+            payload["since_id"] = since_id
+        if limit is not None and limit > 0:
+            payload["limit"] = str(limit)
+
+        res = self.post(payload)
+        if not res.get("success"):
+            raise QwikiClientError(res.get("error", f"Failed to get submissions for form '{slug or doc_id or file_path}'"))
+        return res
+
+    def delete_form_submission(
+        self,
+        submission_id: str,
+        slug: Optional[str] = None,
+        doc_id: Optional[str] = None,
+        file_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Deletes a single submission record by ID from a remote JSON web form."""
+        payload: Dict[str, Any] = {
+            "action": "delete_form_submission",
+            "id": submission_id,
+        }
+        if slug:
+            payload["slug"] = slug
+        if doc_id:
+            payload["docId"] = doc_id
+        if file_path:
+            payload["file"] = file_path
+        res = self.post(payload)
+        if not res.get("success"):
+            raise QwikiClientError(res.get("error", f"Failed to delete submission '{submission_id}'"))
+        return res
+
+    def clear_form_submissions(
+        self,
+        slug: Optional[str] = None,
+        doc_id: Optional[str] = None,
+        file_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Clears all submission records from a remote JSON web form."""
+        payload: Dict[str, Any] = {
+            "action": "clear_form_submissions",
+        }
+        if slug:
+            payload["slug"] = slug
+        if doc_id:
+            payload["docId"] = doc_id
+        if file_path:
+            payload["file"] = file_path
+        res = self.post(payload)
+        if not res.get("success"):
+            raise QwikiClientError(res.get("error", f"Failed to clear submissions for form '{slug or doc_id or file_path}'"))
+        return res
+
+    def download_remote_asset(self, rel_url: str, dest_path: Path) -> Path:
+        """Downloads a remote asset (e.g. uploads/images/...) to a local destination path."""
+        clean_rel = rel_url.lstrip("/")
+        full_url = f"{self.base_url}/{clean_rel}"
+        req = urllib.request.Request(full_url, headers=self._headers())
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            dest_path.write_bytes(resp.read())
+        return dest_path
 
     def upload_image(self, file_path: Path) -> Dict[str, Any]:
         """
